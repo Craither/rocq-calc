@@ -3,8 +3,6 @@ From Stdlib Require Import List.
 From elpi Require Import elpi.
 Require Import ssrmatching.
 
-Check eq_trans.
-
 Lemma f_equal_equal:
   forall [A B:Type] [f1 f2: A->B] [x1 x2:A], f1 = f2 -> x1 = x2 -> f1 x1 = f2 x2.
 Proof.
@@ -23,7 +21,7 @@ Proof.
   assumption.
 Qed.
 
-Lemma register:
+Lemma fold_equal:
   forall [A B:Type] [f g:A->B->A] [l:list B] [i:A],
     (forall [x:A] [y:B],  In y l -> f x y = g x y) -> fold_left f l i = fold_left g l i.
 Proof.
@@ -46,17 +44,37 @@ Proof.
   assumption.
 Qed.
 
+Lemma map_equal:
+  forall [A B:Type] [f g:A->B] [l:list A],
+    (forall [x:A], In x l -> f x = g x) -> map f l = map g l.
+Proof.
+  intros A B f g l H1.
+  induction l.
+  simpl.
+  now apply eq_refl.
+  simpl.
+  f_equal.
+  apply H1.
+  simpl.
+  apply or_introl.
+  reflexivity.
+  apply IHl.
+  intros x H2.
+  apply H1.
+  simpl.
+  apply or_intror.
+  assumption.
+Qed.
 
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
   pred incl o:term, o:term, o:term.
-
   pred step i:term, i:term, o:term.
 
   %If we have a direct inclusion between the last goal and the last subgoal,
   %we don't create a new goal
   step E F _ :-
-    coq.unify-leq E F ok.
+    coq.unify-eq E F ok.
   
   step E F {{lp:IF _}} :-
     incl F E IF.
@@ -77,40 +95,50 @@ Elpi Db relations.db lp:{{
 
 
   pred step_by_context i:term, i:term, o:term.
-  step_by_context E {{lp:X2 = lp:Y2}} T' :-
+  step_by_context E {{lp:Y1 = lp:Y2}} T' :-
     E = app L,
-    std.rev L [Y1,X1|_],
-    (copy X2 Y2 :-!) ==> copy X1 V,
-    step_by_context_aux X1 X2 Y2 _ T B,
-    if (B = {{true}}) (
+    std.rev L [X2,X1|_],
+    (copy Y1 Y2 :-!) ==> copy X1 V,
+    step_by_context_aux X1 V Y1 Y2 _ T B,
+    if (B = 1) (
       if (trans {{lp:X1 = lp:V}} _ E TF) (
-        if (coq.unify-leq Y1 V ok) (T' = T) (T' = {{lp:TF lp:T _}})
+        if (coq.unify-eq X2 V ok) (T' = T) (T' = {{lp:TF lp:T _}})
       ) (
         incl {{lp:X1 = lp:V}} I IF,
         trans I _ E TF,
-        if (coq.unify-leq Y1 V ok) (T' = {{lp:IF lp:T}}) (T' = {{lp:TF (lp:IF lp:T) _}})
+        if (coq.unify-eq X2 V ok) (T' = {{lp:IF lp:T}}) (T' = {{lp:TF (lp:IF lp:T) _}})
       )
     ) (coq.ltac.fail _ "Pattern not found").
 
-  pred step_by_context_aux i:term, i:term, i:term, i:term, o:term, o:term.
-  step_by_context_aux X Y1 _ T' T {{true}} :-
-    coq.unify-leq X Y1 ok,
-    T = T'.
+  pred step_by_context_aux i:term, i:term, i:term, i:term, i:term, o:term, o:int.
+  step_by_context_aux Y1 Y2 X1 X2 T' T' 1 :-
+    coq.unify-eq X1 Y1 ok,
+    coq.unify-eq X2 Y2 ok.
 
-  step_by_context_aux (app [F]) Y1 Y2 T' T B:-!,
-    step_by_context_aux F Y1 Y2 T' T B.
+  step_by_context_aux X X _ _ _ {{eq_refl lp:X}} 0 :- !.
 
-  step_by_context_aux (app [F|L]) Y1 Y2 T' {{f_equal_equal lp:TF' lp:TZ'}} B' :-!,
-    std.rev L L',
-    L' = [Z|TL'],
-    std.rev TL' L'',
-    step_by_context_aux Z Y1 Y2 T' TZ BZ,
-    step_by_context_aux (app [F|L'']) Y1 Y2 T' TF BF,
-    if (BZ = {{true}}) (B' = BZ) (B' = BF),
-    if (BZ = {{true}}) (TZ' = TZ) (TZ' = {{eq_refl lp:Z}}),
-    if (BF = {{true}}) (TF' = TF) (TF' = {{eq_refl lp:{{app [F|L'']}}}}).
+  step_by_context_aux (app [global (const Map),A,C,F1,L]) (app [global (const Map),A,C,F2,L]) Y1 Y2 T' {{map_equal (fun (x : lp:A) (H : In x lp:L) => lp:{{T {{x}} {{H}}}})}} B :-!,
+    coq.locate "map" (const Map),
+    @pi-decl _ A x\ (
+      @pi-decl _ _ h\ (
+        step_by_context_aux {{lp:F1 lp:x}} {{lp:F2 lp:x}} Y1 Y2 T' (T x h) B
+      )
+    ).
 
-  step_by_context_aux X _ _ _ {{eq_refl lp:X}} {{false}} :- !.
+  step_by_context_aux (app [F1|L1]) (app [F2|L2]) Y1 Y2 P' P B :-
+    app_rewrite F1 {std.rev L1} F2 {std.rev L2} Y1 Y2 P' P B.
+
+  pred app_rewrite i:term, i:list term, i:term, i:list term, i:term, i:term, i:term, o:term, o:int.
+  app_rewrite F1 [] F2 [] Y1 Y2 P' PF B :-
+    step_by_context_aux F1 F2 Y1 Y2 P' PF B.
+
+  app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 P' {{f_equal_equal lp:PF lp:PX}} B' :-
+    step_by_context_aux X1 X2 Y1 Y2 P' PX BX,
+    app_rewrite F1 L1 F2 L2 Y1 Y2 P' PF BF,
+    if (BX = 1) (B' = BX) (B' = BF).
+  
+  step_by_context_aux X1 X2 Y1 Y2 T' T B :-
+    step_by_context_aux {whd1 X1} {whd1 X2} Y1 Y2 T' T B.
 }}.
 
 Elpi Command add_transitivity.
@@ -182,7 +210,7 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   solve (goal _ _ E _ [trm F] as G) GL :-
     step_by_context E F T, !,
-    refine.typecheck T G GL.
+    if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
 }}.
 
 
@@ -194,12 +222,11 @@ Tactic Notation "calc" ":" uconstr(te) "as" ident(s) :=
 Tactic Notation "calc" ":" uconstr(te) :=
   let H := fresh "H" in
   assert(H:te).
-
 Tactic Notation "context" uconstr(te) :=
   elpi context ltac_term:(te).
 
-
 Import Nat.
+
 Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
 Proof.
 step (_ = (a+b)*c + (a+b)*d).
