@@ -3,6 +3,24 @@ From Stdlib Require Import List.
 From elpi Require Import elpi.
 Require Import ssrmatching.
 
+Elpi Tactic say.
+Elpi Accumulate lp:{{
+  solve (goal _ _ _ _ [trm F]) _ :-
+    coq.typecheck F Ty ok,
+    coq.say F Ty.
+}}.
+
+Tactic Notation (at level 0) "elprint" uconstr(te) :=
+  elpi say ltac_term:(te).
+
+Check eq_trans.
+
+Lemma f_test:
+  (fun i:nat => i-i) = (fun i:nat => 0).
+Proof.
+  elprint (fun i:nat => i).
+Abort.
+
 Lemma f_equal_equal:
   forall [A B:Type] [f1 f2: A->B] [x1 x2:A], f1 = f2 -> x1 = x2 -> f1 x1 = f2 x2.
 Proof.
@@ -66,6 +84,22 @@ Proof.
   assumption.
 Qed.
 
+Lemma easy_map_equal:
+  forall [A B:Type] [f g:A->B] [l:list A],
+    (forall x, f x = g x) -> map f l = map g l.
+Proof.
+  intros A B f g.
+  induction l.
+  simpl.
+  trivial.
+  intro H1.
+  simpl.
+  f_equal.
+  apply H1.
+  apply IHl.
+  assumption.
+Qed.
+
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
   pred incl o:term, o:term, o:term.
@@ -86,9 +120,6 @@ Elpi Db relations.db lp:{{
   step E F {{lp:TF (lp:IF _) _}} :-
     incl F I IF,
     trans I _ E TF.
-  
-  step E F T :-
-    step {whd1 E} {whd1 F} T.
 
   step _ _ _ :-
     coq.ltac.fail _ "No applicable rule".
@@ -99,46 +130,41 @@ Elpi Db relations.db lp:{{
     E = app L,
     std.rev L [X2,X1|_],
     (copy Y1 Y2 :-!) ==> copy X1 V,
-    step_by_context_aux X1 V Y1 Y2 _ T B,
-    if (B = 1) (
-      if (trans {{lp:X1 = lp:V}} _ E TF) (
-        if (coq.unify-eq X2 V ok) (T' = T) (T' = {{lp:TF lp:T _}})
-      ) (
-        incl {{lp:X1 = lp:V}} I IF,
-        trans I _ E TF,
-        if (coq.unify-eq X2 V ok) (T' = {{lp:IF lp:T}}) (T' = {{lp:TF (lp:IF lp:T) _}})
-      )
-    ) (coq.ltac.fail _ "Pattern not found").
-
-  pred step_by_context_aux i:term, i:term, i:term, i:term, i:term, o:term, o:int.
-  step_by_context_aux Y1 Y2 X1 X2 T' T' 1 :-
-    coq.unify-eq X1 Y1 ok,
-    coq.unify-eq X2 Y2 ok.
-
-  step_by_context_aux X X _ _ _ {{eq_refl lp:X}} 0 :- !.
-
-  step_by_context_aux (app [global (const Map),A,C,F1,L]) (app [global (const Map),A,C,F2,L]) Y1 Y2 T' {{map_equal (fun (x : lp:A) (H : In x lp:L) => lp:{{T {{x}} {{H}}}})}} B :-!,
-    coq.locate "map" (const Map),
-    @pi-decl _ A x\ (
-      @pi-decl _ _ h\ (
-        step_by_context_aux {{lp:F1 lp:x}} {{lp:F2 lp:x}} Y1 Y2 T' (T x h) B
-      )
+    step_by_context_aux X1 V Y1 Y2 _ T,
+    if (trans {{lp:X1 = lp:V}} _ E TF) (
+      if (X2 = V) (T' = T) (T' = {{lp:TF lp:T _}})
+    ) (
+      incl {{lp:X1 = lp:V}} I IF,
+      trans I _ E TF,
+      if (X2 = V) (T' = {{lp:IF lp:T}}) (T' = {{lp:TF (lp:IF lp:T) _}})
     ).
 
-  step_by_context_aux (app [F1|L1]) (app [F2|L2]) Y1 Y2 P' P B :-
-    app_rewrite F1 {std.rev L1} F2 {std.rev L2} Y1 Y2 P' P B.
+  pred step_by_context_aux i:term, i:term, i:term, i:term, i:term, o:term.
+  step_by_context_aux Y1 Y2 Y1 Y2 T' T'.
 
-  pred app_rewrite i:term, i:list term, i:term, i:list term, i:term, i:term, i:term, o:term, o:int.
-  app_rewrite F1 [] F2 [] Y1 Y2 P' PF B :-
-    step_by_context_aux F1 F2 Y1 Y2 P' PF B.
+  step_by_context_aux X X _ _ _ {{ refl_equal lp:X }} :- name X.
+  step_by_context_aux (global _ as C) C _ _ _ {{ @refl_equal Type lp:C }} :- coq.typecheck-ty C _ ok.
+  step_by_context_aux (global _ as C) C _ _ _ {{ refl_equal lp:C }}.
 
-  app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 P' {{f_equal_equal lp:PF lp:PX}} B' :-
-    step_by_context_aux X1 X2 Y1 Y2 P' PX BX,
-    app_rewrite F1 L1 F2 L2 Y1 Y2 P' PF BF,
-    if (BX = 1) (B' = BX) (B' = BF).
+  step_by_context_aux (app [global (const Map),A,C,F1,L]) (app [global (const Map),A,C,F2,L]) Y1 Y2 T' {{easy_map_equal (fun x => _)}} :-
+    coq.locate "map" (const Map),
+    @pi-decl _ A x\ (
+      step_by_context_aux {{lp:F1 lp:x}} {{lp:F2 lp:x}} Y1 Y2 T' T,
+      coq.say T
+    ).
+
+  step_by_context_aux (app [F1|L1]) (app [F2|L2]) Y1 Y2 P' P :-
+    app_rewrite F1 {std.rev L1} F2 {std.rev L2} Y1 Y2 P' P.
+
+  pred app_rewrite i:term, i:list term, i:term, i:list term, i:term, i:term, i:term, o:term.
+  app_rewrite F1 [] F2 [] Y1 Y2 P' PF :-
+    step_by_context_aux F1 F2 Y1 Y2 P' PF.
+
+  app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 P' {{f_equal_equal lp:PF lp:PX}} :-
+    step_by_context_aux X1 X2 Y1 Y2 P' PX,
+    app_rewrite F1 L1 F2 L2 Y1 Y2 P' PF.
+
   
-  step_by_context_aux X1 X2 Y1 Y2 T' T B :-
-    step_by_context_aux {whd1 X1} {whd1 X2} Y1 Y2 T' T B.
 }}.
 
 Elpi Command add_transitivity.
@@ -180,14 +206,6 @@ Elpi Accumulate lp:{{
     coq.elpi.accumulate _ "relations.db" (clause _ _ C).
 }}.
 
-Lemma eq_le_trans:
-  forall x y z:nat, x=y -> y<=z -> x <= z.
-Proof.
-  intros x y z H1 H2.
-  destruct H1.
-  assumption.
-Qed.
-
 Elpi add_transitivity (eq_trans).
 Elpi add_transitivity (Nat.le_trans).
 Elpi add_transitivity (Nat.le_lt_trans).
@@ -210,6 +228,7 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   solve (goal _ _ E _ [trm F] as G) GL :-
     step_by_context E F T, !,
+    coq.say T,
     if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
 }}.
 
@@ -225,8 +244,16 @@ Tactic Notation "calc" ":" uconstr(te) :=
 Tactic Notation "context" uconstr(te) :=
   elpi context ltac_term:(te).
 
-Import Nat.
+Lemma test_map:
+  map (fun i => true) (0::nil) = map (fun i => true) (0::nil).
+Proof.
+  context (true = false).
+  simpl.
+  Show Proof.
+  refine (@eq_trans (list bool) _ (map (fun i => false) (0::nil)) _ (map_equal (fun x H => _)) _).
+Qed.
 
+Import Nat.
 Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
 Proof.
 step (_ = (a+b)*c + (a+b)*d).
