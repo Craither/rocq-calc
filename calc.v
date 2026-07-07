@@ -6,8 +6,7 @@ Require Import ssrmatching.
 Elpi Tactic say.
 Elpi Accumulate lp:{{
   solve (goal _ _ _ _ [trm F]) _ :-
-    coq.typecheck F Ty ok,
-    coq.say F Ty.
+    coq.say F.
 }}.
 
 Tactic Notation (at level 0) "elprint" uconstr(te) :=
@@ -100,6 +99,15 @@ Proof.
   assumption.
 Qed.
 
+Lemma apply_f_equal:
+  forall [A B:Type] [f g:A->B] [x y:A],
+    (forall z, f z = g z) -> x = y -> f x = g y.
+Proof.
+  intros A B f g x y H1 H2.
+  destruct H2.
+  apply H1.
+Qed.
+
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
   pred incl o:term, o:term, o:term.
@@ -126,45 +134,52 @@ Elpi Db relations.db lp:{{
 
 
   pred step_by_context i:term, i:term, o:term.
-  step_by_context E {{lp:Y1 = lp:Y2}} T' :-
+  step_by_context E {{lp:Y1 = lp:Y2}} P' :-
     E = app L,
     std.rev L [X2,X1|_],
-    (copy Y1 Y2 :-!) ==> copy X1 V,
-    step_by_context_aux X1 V Y1 Y2 _ T,
-    if (trans {{lp:X1 = lp:V}} _ E TF) (
-      if (X2 = V) (T' = T) (T' = {{lp:TF lp:T _}})
-    ) (
-      incl {{lp:X1 = lp:V}} I IF,
-      trans I _ E TF,
-      if (X2 = V) (T' = {{lp:IF lp:T}}) (T' = {{lp:TF (lp:IF lp:T) _}})
+    step_by_context_aux X1 V Y1 Y2 P,
+    if (X2 = V) (P' = P) (
+      if (trans {{lp:X1 = lp:V}} _ E TF) (
+        (P' = {{lp:TF lp:P _}})
+      ) (
+        incl {{lp:X1 = lp:V}} I IF,
+        trans I _ E TF,
+        P' = {{lp:TF (lp:IF lp:P) _}}
+      )
     ).
 
-  pred step_by_context_aux i:term, i:term, i:term, i:term, i:term, o:term.
-  step_by_context_aux Y1 Y2 Y1 Y2 T' T'.
-
-  step_by_context_aux X X _ _ _ {{ refl_equal lp:X }} :- name X.
-  step_by_context_aux (global _ as C) C _ _ _ {{ @refl_equal Type lp:C }} :- coq.typecheck-ty C _ ok.
-  step_by_context_aux (global _ as C) C _ _ _ {{ refl_equal lp:C }}.
-
-  step_by_context_aux (app [global (const Map),A,C,F1,L]) (app [global (const Map),A,C,F2,L]) Y1 Y2 T' {{easy_map_equal (fun x => _)}} :-
-    coq.locate "map" (const Map),
-    @pi-decl _ A x\ (
-      step_by_context_aux {{lp:F1 lp:x}} {{lp:F2 lp:x}} Y1 Y2 T' T,
-      coq.say T
-    ).
-
-  step_by_context_aux (app [F1|L1]) (app [F2|L2]) Y1 Y2 P' P :-
-    app_rewrite F1 {std.rev L1} F2 {std.rev L2} Y1 Y2 P' P.
-
-  pred app_rewrite i:term, i:list term, i:term, i:list term, i:term, i:term, i:term, o:term.
-  app_rewrite F1 [] F2 [] Y1 Y2 P' PF :-
-    step_by_context_aux F1 F2 Y1 Y2 P' PF.
-
-  app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 P' {{f_equal_equal lp:PF lp:PX}} :-
-    step_by_context_aux X1 X2 Y1 Y2 P' PX,
-    app_rewrite F1 L1 F2 L2 Y1 Y2 P' PF.
-
+  pred step_by_context_aux i:term, o:term, i:term, i:term, o:term.
+  step_by_context_aux (app [F1]) (app [F2]) Y1 Y2 P :-
+    step_by_context_aux F1 F2 Y1 Y2 P.
   
+  step_by_context_aux Y1 Y2 Y1 Y2 _.
+
+  step_by_context_aux (app [global Map,A,C,F1,L]) (app [global Map,A,C,F2,L]) Y1 Y2 {{map_equal (fun (x:lp:A) (h: In x lp:L)=> lp:{{P {{x}} {{h}}}})}} :-!,
+    coq.locate "map" Map,
+    @pi-decl _ A x\ (
+      @pi-decl _ {{In lp:x lp:L}} h\
+      step_by_context_aux {{lp:F1 lp:x}} {{lp:F2 lp:x}} Y1 Y2 (P x h)
+    ).
+
+  step_by_context_aux (app [F1|L1]) (app [F2|L2']) Y1 Y2 P :-
+    app_rewrite F1 {std.rev L1} F2 L2 Y1 Y2 P,
+    std.rev L2 L2'.
+
+  step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 P :-
+    step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P,
+    coq.say F2.
+
+  step_by_context_aux X X _ _ {{ refl_equal lp:X }} :- name X.
+  step_by_context_aux (global _ as C) C _ _ {{ @refl_equal Type lp:C }} :- coq.typecheck-ty C _ ok.
+  step_by_context_aux (global _ as C) C _ _ {{ refl_equal lp:C }}.
+
+  pred app_rewrite i:term, i:list term, o:term, o:list term, i:term, i:term, o:term.
+  app_rewrite F1 [] F2 [] Y1 Y2 PF :-
+    step_by_context_aux F1 F2 Y1 Y2 PF.
+
+  app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 {{f_equal_equal lp:PF lp:PX}} :-
+    step_by_context_aux X1 X2 Y1 Y2 PX,
+    app_rewrite F1 L1 F2 L2 Y1 Y2 PF.
 }}.
 
 Elpi Command add_transitivity.
@@ -244,14 +259,11 @@ Tactic Notation "calc" ":" uconstr(te) :=
 Tactic Notation "context" uconstr(te) :=
   elpi context ltac_term:(te).
 
-Lemma test_map:
-  map (fun i => true) (0::nil) = map (fun i => true) (0::nil).
+Lemma fold_test:
+  map (fun i => orb true true) (true::nil) = map (fun i=> orb false false) (true::nil).
 Proof.
   context (true = false).
-  simpl.
-  Show Proof.
-  refine (@eq_trans (list bool) _ (map (fun i => false) (0::nil)) _ (map_equal (fun x H => _)) _).
-Qed.
+Abort.
 
 Import Nat.
 Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
@@ -268,9 +280,9 @@ step (_ = a*c + b*c + a*d + b*d).
 context (a*c + b*c + a*d = a*c + (b*c + a*d)).
   apply eq_sym.
   now apply add_assoc.
-context (b*c + _ = a*d + b*c).
+context (b*c + a*d = a*d + b*c).
   now apply add_comm.
-context (a*c + (_ + _) = a*c + a*d + b*c).
+context (a*c + (a*d + b*c) = a*c + a*d + b*c).
   now apply add_assoc.
 Qed.
 
@@ -291,7 +303,7 @@ context (a*a = a^2).
   now apply pow_2_r.
 context (b*a = a*b).
   now apply mul_comm.
-context (_ + a*b + a*b = a^2 + (a*b + a*b)).
+context (a^2 + a*b + a*b = a^2 + (a*b + a*b)).
   apply eq_sym.
   now apply add_assoc.
 context (a*b + a*b = 2*(a*b)).
@@ -302,7 +314,7 @@ context (b*b = b^2).
 step (_ = a^2 + (2*(a*b) + b^2)).
   apply eq_sym.
   now apply add_assoc.
-context (2*_ + _ = b^2 + 2*(a*b)).
+context (2*(a*b) + b^2 = b^2 + 2*(a*b)).
   now apply add_comm.
 step (_ = a^2 + b^2 + 2*(a*b)).
   now apply add_assoc.
@@ -312,7 +324,7 @@ Qed.
 Lemma test4 a b c : 2 * (a * b + b * c + c * a) <= (a + b + c) ^2.
 Proof.
 step (_ = 2*(a*b) + 2*(b*c) + 2*(c*a)).
-  context (_ = 2*(a*b + b*c) + 2*(c*a)).
+  step (_ = 2*(a*b + b*c) + 2*(c*a)).
     now apply mul_add_distr_l.
   apply f_equal2 with (f:=plus).
   2:trivial.
@@ -320,7 +332,7 @@ step (_ = 2*(a*b) + 2*(b*c) + 2*(c*a)).
 step  (_ <= a^2 + b^2 + c^2 + 2*(a*b) + 2*(b*c) + 2*(c*a)).
   step  (2*(a*b) + 2*(b*c) + 2*(c*a) <= 2*(a*b) + 2*(b*c) + 2*(c*a) + (a^2 + b^2 + c^2)).
     now apply le_add_r.
-  context (_ = a^2 + b^2 + c^2 + (2*(a*b) + 2*(b*c) + 2*(c*a))).
+  step (_ = a^2 + b^2 + c^2 + (2*(a*b) + 2*(b*c) + 2*(c*a))).
     now apply add_comm.
   context (2*(a*b) + 2*(b*c) + 2*(c*a) = 2*(a*b) + (2*(b*c) + 2*(c*a))).
     apply eq_sym.
@@ -346,7 +358,7 @@ step (_ = (a + b + c)^2).
     now apply add_assoc.
   context (2*(a*b) + c^2 = c^2 + 2*(a*b)).
     now apply add_comm.
-  context (_ + (_ + _) = a^2 + b^2 + c^2 + 2*(a*b)).
+  context (a^2 + b^2 + (c^2 + 2*(a*b)) = a^2 + b^2 + c^2 + 2*(a*b)).
     now apply add_assoc.
   step (_ = a^2 + b^2 + c^2 + 2*(a*b) + (2*(a*c) + 2*(b*c))).
     apply eq_sym.
