@@ -133,8 +133,8 @@ Elpi Db relations.db lp:{{
     coq.ltac.fail _ "No applicable rule".
 
 
-  pred step_by_context i:term, i:term, o:term.
-  step_by_context E {{lp:Y1 = lp:Y2}} P' :-
+  pred step_by_context i:term, i:argument, i:argument, o:term.
+  step_by_context E Y1 Y2 P' :-
     E = app L,
     std.rev L [X2,X1|_],
     step_by_context_aux X1 V Y1 Y2 P,
@@ -148,17 +148,21 @@ Elpi Db relations.db lp:{{
       )
     ).
 
-  pred step_by_context_aux i:term, o:term, i:term, i:term, o:term.
+  pred step_by_context_aux i:term, o:term, i:argument, i:argument, o:term.
   step_by_context_aux (app [F1]) (app [F2]) Y1 Y2 P :-
     step_by_context_aux F1 F2 Y1 Y2 P.
   
-  step_by_context_aux Y1 Y2 Y1 Y2 _.
+  step_by_context_aux Y1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) P :-
+    TY = {{ lp:Y1 = lp:Y2 }},
+    coq.typecheck-ty TY _ ok,
+    coq.typecheck P TY ok.
 
-  step_by_context_aux (app [global Map,A,C,F1,L]) (app [global Map,A,C,F2,L]) Y1 Y2 {{map_equal (fun (x:lp:A) (h: In x lp:L)=> lp:{{P {{x}} {{h}}}})}} :-!,
+  step_by_context_aux (app [global Map,A,C,fun N A F1,L]) (app [global Map,A,C,fun N A F2,L]) Y1 Y2 {{map_equal (fun (x:lp:A) (h: In x lp:L)=> lp:{{P {{x}} {{h}}}})}} :-!,
     coq.locate "map" Map,
-    @pi-decl _ A x\ (
+    @pi-decl N A x\ (
       @pi-decl _ {{In lp:x lp:L}} h\
-      step_by_context_aux {{lp:F1 lp:x}} {{lp:F2 lp:x}} Y1 Y2 (P x h)
+      instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
+      step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (P x h)
     ).
 
   step_by_context_aux (app [F1|L1]) (app [F2|L2']) Y1 Y2 P :-
@@ -166,20 +170,37 @@ Elpi Db relations.db lp:{{
     std.rev L2 L2'.
 
   step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 P :-
-    step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P,
-    coq.say F2.
+    step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P.
 
   step_by_context_aux X X _ _ {{ refl_equal lp:X }} :- name X.
   step_by_context_aux (global _ as C) C _ _ {{ @refl_equal Type lp:C }} :- coq.typecheck-ty C _ ok.
   step_by_context_aux (global _ as C) C _ _ {{ refl_equal lp:C }}.
 
-  pred app_rewrite i:term, i:list term, o:term, o:list term, i:term, i:term, o:term.
+  pred app_rewrite i:term, i:list term, o:term, o:list term, i:argument, i:argument, o:term.
   app_rewrite F1 [] F2 [] Y1 Y2 PF :-
     step_by_context_aux F1 F2 Y1 Y2 PF.
 
   app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 {{f_equal_equal lp:PF lp:PX}} :-
     step_by_context_aux X1 X2 Y1 Y2 PX,
     app_rewrite F1 L1 F2 L2 Y1 Y2 PF.
+
+  pred instantiate-replacement i:name, i:term, i:term, i:argument, i:argument, o:argument, o:argument.
+  instantiate-replacement N Ty C L R L1 R1 :- std.do! [
+    instantiate N Ty C L L1,
+    instantiate N Ty C R R1,
+  ].
+
+  pred instantiate i:name, i:term, i:term, i:argument, o:argument.
+  instantiate _ _ _ (open-trm 0 A) (open-trm 0 A) :- !.
+  instantiate N T C (open-trm I F) (open-trm J F1) :- remove-binder-for N T C F F1, !,
+    J is I - 1.
+  instantiate _ _ _ X X.
+
+  pred remove-binder-for i:name, i:term, i:term, i:term, o:term.
+  remove-binder-for N _ C (fun N1 _ F) Res :- {coq.name->id N} = {coq.name->id N1}, !,
+    Res = (F C).
+  remove-binder-for N T C (fun N1 T1 F) (fun N1 T1 F1) :-
+    @pi-decl N1 T1 x \ remove-binder-for N T C (F x) (F1 x).
 }}.
 
 Elpi Command add_transitivity.
@@ -241,9 +262,8 @@ Elpi Accumulate lp:{{
 Elpi Tactic context.
 Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
-  solve (goal _ _ E _ [trm F] as G) GL :-
-    step_by_context E F T, !,
-    coq.say T,
+  solve (goal _ _ E _ [(open-trm _ _ as Y1),(open-trm _ _ as Y2)] as G) GL :-
+    step_by_context E Y1 Y2 T, !,
     if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
 }}.
 
@@ -256,13 +276,20 @@ Tactic Notation "calc" ":" uconstr(te) "as" ident(s) :=
 Tactic Notation "calc" ":" uconstr(te) :=
   let H := fresh "H" in
   assert(H:te).
-Tactic Notation "context" uconstr(te) :=
-  elpi context ltac_term:(te).
+Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
+  elpi context ltac_open_term:(t1) ltac_open_term:(t2).
 
 Lemma fold_test:
-  map (fun i => orb true true) (true::nil) = map (fun i=> orb false false) (true::nil).
+  map (fun i => (i-i)) (1::nil) = (0::nil).
 Proof.
-  context (true = false).
+  context (i-i) = 0.
+  apply Nat.sub_diag.
+  simpl.
+  reflexivity.
+  Unshelve.
+  exact nat.
+  exact 0.
+  SearchPattern (?X - ?X = 0).
 Abort.
 
 Import Nat.
@@ -270,19 +297,19 @@ Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
 Proof.
 step (_ = (a+b)*c + (a+b)*d).
   now apply mul_add_distr_l.
-context ((a+b)*c = a*c + b*c).
+context ((a+b)*c) = (a*c + b*c).
 Show Proof.
   now apply mul_add_distr_r.
-context ((a+b)*d = a*d + b*d).
+context ((a+b)*d) = (a*d + b*d).
   now apply mul_add_distr_r.
 step (_ = a*c + b*c + a*d + b*d).
   now apply add_assoc.
-context (a*c + b*c + a*d = a*c + (b*c + a*d)).
+context (a*c + b*c + a*d) = (a*c + (b*c + a*d)).
   apply eq_sym.
   now apply add_assoc.
-context (b*c + a*d = a*d + b*c).
+context (b*c + a*d) = (a*d + b*c).
   now apply add_comm.
-context (a*c + (a*d + b*c) = a*c + a*d + b*c).
+context (a*c + (a*d + b*c) ) = ( a*c + a*d + b*c).
   now apply add_assoc.
 Qed.
 
@@ -292,29 +319,29 @@ step (_ = (a+b)*(a+b)).
   now apply pow_2_r.
 step (_ = (a+b)*a + (a+b)*b).
   now apply mul_add_distr_l.
-context ((a+b)*a = a*a + b*a).
+context ((a+b)*a ) = ( a*a + b*a).
   now apply mul_add_distr_r.
-context ((a + b)*b = a*b + b*b).
+context ((a + b)*b ) = ( a*b + b*b).
   now apply mul_add_distr_r.
 step (_ = a*a + b*a + a*b + b*b).
   now apply add_assoc.
-context (a*a = a^2).
+context (a*a ) = ( a^2).
   apply eq_sym.
   now apply pow_2_r.
-context (b*a = a*b).
+context (b*a ) = ( a*b).
   now apply mul_comm.
-context (a^2 + a*b + a*b = a^2 + (a*b + a*b)).
+context (a^2 + a*b + a*b ) = ( a^2 + (a*b + a*b)).
   apply eq_sym.
   now apply add_assoc.
-context (a*b + a*b = 2*(a*b)).
+context (a*b + a*b ) = ( 2*(a*b)).
   now apply f_equal2 with (f:=plus); trivial.
-context (b*b = b^2).
+context (b*b ) = ( b^2).
   apply eq_sym.
   now apply pow_2_r.
 step (_ = a^2 + (2*(a*b) + b^2)).
   apply eq_sym.
   now apply add_assoc.
-context (2*(a*b) + b^2 = b^2 + 2*(a*b)).
+context (2*(a*b) + b^2 ) = ( b^2 + 2*(a*b)).
   now apply add_comm.
 step (_ = a^2 + b^2 + 2*(a*b)).
   now apply add_assoc.
@@ -334,7 +361,7 @@ step  (_ <= a^2 + b^2 + c^2 + 2*(a*b) + 2*(b*c) + 2*(c*a)).
     now apply le_add_r.
   step (_ = a^2 + b^2 + c^2 + (2*(a*b) + 2*(b*c) + 2*(c*a))).
     now apply add_comm.
-  context (2*(a*b) + 2*(b*c) + 2*(c*a) = 2*(a*b) + (2*(b*c) + 2*(c*a))).
+  context (2*(a*b) + 2*(b*c) + 2*(c*a) ) = ( 2*(a*b) + (2*(b*c) + 2*(c*a))).
     apply eq_sym.
     now apply add_assoc.
   step (_ = a^2 + b^2 + c^2 + 2*(a*b) + (2*(b*c) + 2*(c*a))).
@@ -345,28 +372,28 @@ step (_ = (a + b + c)^2).
   apply eq_sym.
   step ((a+b+c)^2 = (a+b)^2 + c^2 + 2*((a+b)*c)).
     now apply rem_id.
-  context ((a+b)^2 = a^2 + b^2 + 2*(a*b)).
+  context ((a+b)^2 ) = ( a^2 + b^2 + 2*(a*b)).
     now apply rem_id.
-  context ((a+b)*c = a*c + b*c).
+  context ((a+b)*c ) = ( a*c + b*c).
     now apply mul_add_distr_r.
-  context (2*(a*c + b*c) = 2*(a*c) + 2*(b*c)).
+  context (2*(a*c + b*c) ) = ( 2*(a*c) + 2*(b*c)).
     now apply mul_add_distr_l.
   step (_ = a^2 + b^2 + 2*(a*b) + c^2 + 2*(a*c) + 2*(b*c)).
     now apply add_assoc.
-  context (a^2 + b^2 + 2*(a*b) + c^2 = a^2 + b^2 + (2*(a*b) + c^2)).
+  context (a^2 + b^2 + 2*(a*b) + c^2 ) = ( a^2 + b^2 + (2*(a*b) + c^2)).
     apply eq_sym.
     now apply add_assoc.
-  context (2*(a*b) + c^2 = c^2 + 2*(a*b)).
+  context (2*(a*b) + c^2 ) = ( c^2 + 2*(a*b)).
     now apply add_comm.
-  context (a^2 + b^2 + (c^2 + 2*(a*b)) = a^2 + b^2 + c^2 + 2*(a*b)).
+  context (a^2 + b^2 + (c^2 + 2*(a*b)) ) = ( a^2 + b^2 + c^2 + 2*(a*b)).
     now apply add_assoc.
   step (_ = a^2 + b^2 + c^2 + 2*(a*b) + (2*(a*c) + 2*(b*c))).
     apply eq_sym.
     now apply add_assoc.
-  context (2*(a*c) + 2*(b*c) = 2*(b*c) + 2*(a*c)).
+  context (2*(a*c) + 2*(b*c) ) = ( 2*(b*c) + 2*(a*c)).
     now apply add_comm.
   step (_ = a^2 + b^2 + c^2 + 2*(a*b) + 2*(b*c) + 2*(a*c)).
     now apply add_assoc.
-  context (a*c = c*a).
+  context (a*c ) = ( c*a).
     now apply mul_comm.
 Qed.
