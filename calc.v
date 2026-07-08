@@ -137,52 +137,61 @@ Elpi Db relations.db lp:{{
   step_by_context E Y1 Y2 P' :-
     E = app L,
     std.rev L [X2,X1|_],
-    step_by_context_aux X1 V Y1 Y2 P,
-    if (X2 = V) (P' = P) (
-      if (trans {{lp:X1 = lp:V}} _ E TF) (
-        (P' = {{lp:TF lp:P _}})
-      ) (
-        incl {{lp:X1 = lp:V}} I IF,
-        trans I _ E TF,
-        P' = {{lp:TF (lp:IF lp:P) _}}
-      )
+    step_by_context_aux X1 V Y1 Y2 P J,
+    if (J = 0)(
+      coq.ltac.fail _ "Pattern not found"
+    ) (
+      if (X2 = V) (P' = P) (
+        if (trans {{lp:X1 = lp:V}} _ E TF) (
+          (P' = {{lp:TF lp:P _}})
+        ) (
+          incl {{lp:X1 = lp:V}} I IF,
+          trans I _ E TF,
+          P' = {{lp:TF (lp:IF lp:P) _}}
+        )
+      ) 
     ).
 
-  pred step_by_context_aux i:term, o:term, i:argument, i:argument, o:term.
-  step_by_context_aux (app [F1]) (app [F2]) Y1 Y2 P :-
-    step_by_context_aux F1 F2 Y1 Y2 P.
+  pred step_by_context_aux i:term, o:term, i:argument, i:argument, o:term, o:int.
+  step_by_context_aux (app [F1]) (app [F2]) Y1 Y2 P I:-
+    step_by_context_aux F1 F2 Y1 Y2 P I.
   
-  step_by_context_aux Y1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) P :-
+  step_by_context_aux Y1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) P 1 :-
     TY = {{ lp:Y1 = lp:Y2 }},
     coq.typecheck-ty TY _ ok,
     coq.typecheck P TY ok.
 
-  step_by_context_aux (app [global Map,A,C,fun N A F1,L]) (app [global Map,A,C,fun N A F2,L]) Y1 Y2 {{map_equal (fun (x:lp:A) (h: In x lp:L)=> lp:{{P {{x}} {{h}}}})}} :-!,
+  step_by_context_aux (app [global Map,A,C,fun N A F1,L] as X1) (app [global Map,A,C,fun N A F2,L]) Y1 Y2 P' I:-
     coq.locate "map" Map,
+    coq.string->name "H" H,
     @pi-decl N A x\ (
-      @pi-decl _ {{In lp:x lp:L}} h\
+      @pi-decl H {{In lp:x lp:L}} h\
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
-      step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (P x h)
-    ).
+      step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (P x h) I
+    ),
+    transform_proof I X1 {{map_equal (fun (x:lp:A) (h: In x lp:L)=> lp:{{P {{x}} {{h}}}})}} P'.
 
-  step_by_context_aux (app [F1|L1]) (app [F2|L2']) Y1 Y2 P :-
-    app_rewrite F1 {std.rev L1} F2 L2 Y1 Y2 P,
-    std.rev L2 L2'.
+  step_by_context_aux (app [F1|L1] as X1) (app [F2|L2']) Y1 Y2 P' I :-
+    app_rewrite F1 {std.rev L1} F2 L2 Y1 Y2 P I,
+    std.rev L2 L2',
+    transform_proof I X1 P P'.
 
-  step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 P :-
-    step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P.
+  %step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 P :-
+  %  step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P.
 
-  step_by_context_aux X X _ _ {{ refl_equal lp:X }} :- name X.
-  step_by_context_aux (global _ as C) C _ _ {{ @refl_equal Type lp:C }} :- coq.typecheck-ty C _ ok.
-  step_by_context_aux (global _ as C) C _ _ {{ refl_equal lp:C }}.
+  step_by_context_aux X X _ _ {{ refl_equal lp:X }} 0 :- name X.
+  step_by_context_aux (global _ as C) C _ _ {{ @refl_equal Type lp:C }} 0 :- coq.typecheck-ty C _ ok.
+  step_by_context_aux (global _ as C) C _ _ {{ refl_equal lp:C }} 0.
 
-  pred app_rewrite i:term, i:list term, o:term, o:list term, i:argument, i:argument, o:term.
-  app_rewrite F1 [] F2 [] Y1 Y2 PF :-
-    step_by_context_aux F1 F2 Y1 Y2 PF.
+  pred app_rewrite i:term, i:list term, o:term, o:list term, i:argument, i:argument, o:term, o:int.
+  app_rewrite F1 [] F2 [] Y1 Y2 PF I :-
+    step_by_context_aux F1 F2 Y1 Y2 PF I.
 
-  app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 {{f_equal_equal lp:PF lp:PX}} :-
-    step_by_context_aux X1 X2 Y1 Y2 PX,
-    app_rewrite F1 L1 F2 L2 Y1 Y2 PF.
+  app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 P' J:-
+    step_by_context_aux X1 X2 Y1 Y2 PX IX,
+    app_rewrite F1 L1 F2 L2 Y1 Y2 PF IF,
+    J is IX + IF,
+    transform_proof J (app [F1,X1|L1]) {{f_equal_equal lp:PF lp:PX}} P'.
 
   pred instantiate-replacement i:name, i:term, i:term, i:argument, i:argument, o:argument, o:argument.
   instantiate-replacement N Ty C L R L1 R1 :- std.do! [
@@ -190,14 +199,19 @@ Elpi Db relations.db lp:{{
     instantiate N Ty C R R1,
   ].
 
+  func transform_proof int,term,term -> term.
+  transform_proof 0 X _ {{eq_refl lp:X}} :-!.
+  transform_proof _ _ T T.
+
   pred instantiate i:name, i:term, i:term, i:argument, o:argument.
-  instantiate _ _ _ (open-trm 0 A) (open-trm 0 A) :- !.
-  instantiate N T C (open-trm I F) (open-trm J F1) :- remove-binder-for N T C F F1, !,
+  instantiate _ _ _ (open-trm 0 A) (open-trm 0 A).
+  instantiate N T C (open-trm I F) (open-trm J F1) :- 
+    remove-binder-for N T C F F1,
     J is I - 1.
   instantiate _ _ _ X X.
 
   pred remove-binder-for i:name, i:term, i:term, i:term, o:term.
-  remove-binder-for N _ C (fun N1 _ F) Res :- {coq.name->id N} = {coq.name->id N1}, !,
+  remove-binder-for N _ C (fun N1 _ F) Res :- {coq.name->id N} = {coq.name->id N1},
     Res = (F C).
   remove-binder-for N T C (fun N1 T1 F) (fun N1 T1 F1) :-
     @pi-decl N1 T1 x \ remove-binder-for N T C (F x) (F1 x).
@@ -255,8 +269,8 @@ Elpi Tactic step.
 Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   solve (goal _ _ E _ [trm F] as G) GL :-
-    step E F T,
-    refine T G GL.
+    step E F T, !,
+    if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
 }}.
 
 Elpi Tactic context.
@@ -264,6 +278,7 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   solve (goal _ _ E _ [(open-trm _ _ as Y1),(open-trm _ _ as Y2)] as G) GL :-
     step_by_context E Y1 Y2 T, !,
+    coq.say T,
     if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
 }}.
 
@@ -280,12 +295,12 @@ Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
   elpi context ltac_open_term:(t1) ltac_open_term:(t2).
 
 Lemma fold_test:
-  map (fun i => (i-i)) (1::nil) = (0::nil).
+  forall (l : list nat),
+    map (fun i => (i-i)) l = map (fun i => 0) l.
 Proof.
+  intro l.
   context (i-i) = 0.
   apply Nat.sub_diag.
-  simpl.
-  reflexivity.
   Unshelve.
   exact nat.
   exact 0.
