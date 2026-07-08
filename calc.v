@@ -99,15 +99,6 @@ Proof.
   assumption.
 Qed.
 
-Lemma apply_f_equal:
-  forall [A B:Type] [f g:A->B] [x y:A],
-    (forall z, f z = g z) -> x = y -> f x = g y.
-Proof.
-  intros A B f g x y H1 H2.
-  destruct H2.
-  apply H1.
-Qed.
-
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
   pred incl o:term, o:term, o:term.
@@ -116,7 +107,7 @@ Elpi Db relations.db lp:{{
   %If we have a direct inclusion between the last goal and the last subgoal,
   %we don't create a new goal
   step E F _ :-
-    coq.unify-eq E F ok.
+    coq.unify-leq E F ok.
   
   step E F {{lp:IF _}} :-
     incl F E IF.
@@ -156,7 +147,9 @@ Elpi Db relations.db lp:{{
   step_by_context_aux (app [F1]) (app [F2]) Y1 Y2 P I:-
     step_by_context_aux F1 F2 Y1 Y2 P I.
   
-  step_by_context_aux Y1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) P 1 :-
+  step_by_context_aux X1 X2 (open-trm 0 Y1) (open-trm 0 Y2) P 1 :-
+    coq.unify-leq X1 Y1 ok,
+    coq.unify-leq X2 Y2 ok,
     TY = {{ lp:Y1 = lp:Y2 }},
     coq.typecheck-ty TY _ ok,
     coq.typecheck P TY ok.
@@ -169,7 +162,7 @@ Elpi Db relations.db lp:{{
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (P x h) I
     ),
-    transform_proof I X1 {{map_equal (fun (x:lp:A) (h: In x lp:L)=> lp:{{P {{x}} {{h}}}})}} P'.
+    transform_proof I X1 {{map_equal lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P'.
 
   step_by_context_aux (app [F1|L1] as X1) (app [F2|L2']) Y1 Y2 P' I :-
     app_rewrite F1 {std.rev L1} F2 L2 Y1 Y2 P I,
@@ -278,33 +271,29 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   solve (goal _ _ E _ [(open-trm _ _ as Y1),(open-trm _ _ as Y2)] as G) GL :-
     step_by_context E Y1 Y2 T, !,
-    coq.say T,
-    if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
+    if (refine T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
+  solve _ _ :-
+    coq.ltac.fail _ "Unable to fullfill the rewrite".
 }}.
-
 
 Tactic Notation "step" uconstr(te) := elpi step ltac_term:(te).
 Tactic Notation "step" uconstr(te) "by" tactic(ta) :=
-  elpi step ltac_term:(te); [solve [ta]|..].
+  elpi step ltac_term:(te); [solve[ta]..|idtac].
 Tactic Notation "calc" ":" uconstr(te) "as" ident(s) :=
   assert(s:te).
 Tactic Notation "calc" ":" uconstr(te) :=
   let H := fresh "H" in
   assert(H:te).
 Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
-  elpi context ltac_open_term:(t1) ltac_open_term:(t2).
+  elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|cbv beta..].
 
 Lemma fold_test:
-  forall (l : list nat),
+  forall l : list nat,
     map (fun i => (i-i)) l = map (fun i => 0) l.
 Proof.
   intro l.
-  context (i-i) = 0.
+  context (i-i) = (0).
   apply Nat.sub_diag.
-  Unshelve.
-  exact nat.
-  exact 0.
-  SearchPattern (?X - ?X = 0).
 Abort.
 
 Import Nat.
@@ -312,10 +301,9 @@ Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
 Proof.
 step (_ = (a+b)*c + (a+b)*d).
   now apply mul_add_distr_l.
-context ((a+b)*c) = (a*c + b*c).
-Show Proof.
+context (_*c) = (a*c + b*c).
   now apply mul_add_distr_r.
-context ((a+b)*d) = (a*d + b*d).
+context (_*d) = (a*d + b*d).
   now apply mul_add_distr_r.
 step (_ = a*c + b*c + a*d + b*d).
   now apply add_assoc.
@@ -324,7 +312,7 @@ context (a*c + b*c + a*d) = (a*c + (b*c + a*d)).
   now apply add_assoc.
 context (b*c + a*d) = (a*d + b*c).
   now apply add_comm.
-context (a*c + (a*d + b*c) ) = ( a*c + a*d + b*c).
+context (_ + (_ + _) ) = ( a*c + a*d + b*c).
   now apply add_assoc.
 Qed.
 
@@ -334,21 +322,21 @@ step (_ = (a+b)*(a+b)).
   now apply pow_2_r.
 step (_ = (a+b)*a + (a+b)*b).
   now apply mul_add_distr_l.
-context ((a+b)*a ) = ( a*a + b*a).
+context (_*a ) = (a*a + b*a).
   now apply mul_add_distr_r.
-context ((a + b)*b ) = ( a*b + b*b).
+context (_*b ) = (a*b + b*b).
   now apply mul_add_distr_r.
 step (_ = a*a + b*a + a*b + b*b).
   now apply add_assoc.
-context (a*a ) = ( a^2).
+context (a*a) = (a^2).
   apply eq_sym.
   now apply pow_2_r.
-context (b*a ) = ( a*b).
+context (b*a) = (a*b).
   now apply mul_comm.
-context (a^2 + a*b + a*b ) = ( a^2 + (a*b + a*b)).
+context (a^2 + _ + _ ) = ( a^2 + (a*b + a*b)).
   apply eq_sym.
   now apply add_assoc.
-context (a*b + a*b ) = ( 2*(a*b)).
+context (a*b + a*b) = ( 2*(a*b)).
   now apply f_equal2 with (f:=plus); trivial.
 context (b*b ) = ( b^2).
   apply eq_sym.
