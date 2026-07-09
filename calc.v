@@ -1,25 +1,11 @@
 From Stdlib Require Import Arith.
 From Stdlib Require Import List.
 From elpi Require Import elpi.
-From mathcomp Require Import bigop.
+From mathcomp Require Import all_ssreflect.
 
-
-Elpi Tactic say.
-Elpi Accumulate lp:{{
-  solve (goal _ _ _ _ [trm F1,trm F2]) _ :-
-    coq.unify-leq F1 F2 ok,
-    coq.say F1 F2.
-}}.
-
-Tactic Notation (at level 0) "elprint" uconstr(te) uconstr(te):=
-  elpi say ltac_term:(te) ltac_term:(te).
-
-
-Lemma f_test:
-  (fun i:nat => i-i) = (fun i:nat => 0).
-Proof.
-  elprint (fun i:nat => i) (fun i:nat => i).
-Abort.
+Set Implicit Arguments.
+Unset Strict Implicit.
+Unset Printing Implicit Defensive.
 
 Lemma f_equal_equal:
   forall [A B:Type] [f1 f2: A->B] [x1 x2:A], f1 = f2 -> x1 = x2 -> f1 x1 = f2 x2.
@@ -29,14 +15,11 @@ Proof.
   Show Proof.
 Qed.
 
-Lemma f_equal_relat:
-  forall [A B:Type] [f: A->B->Prop] [x y:A] [z:B],
-    x = y -> f y z -> f x z.
-Proof.
-  intros A B f x y z H1 H2.
-  destruct H1.
-  assumption.
-Qed.
+Elpi Command say.
+Elpi Accumulate lp:{{
+  main L :-
+    coq.say L.
+}}.
 
 Lemma fold_equal:
   forall [A B:Type] [f g:A->B->A] [l1 l2:list B] [i1 i2:A],
@@ -55,7 +38,7 @@ Proof.
   apply H.
   simpl.
   apply or_introl.
-  reflexivity.
+  apply Corelib.Init.Logic.eq_refl.
   destruct H'.
   apply IHl1.
   intros x y.
@@ -74,7 +57,7 @@ Proof.
   destruct H.
   induction l1.
   simpl.
-  now apply eq_refl.
+  apply Corelib.Init.Logic.eq_refl.
   simpl.
   f_equal.
   apply H1.
@@ -88,6 +71,27 @@ Proof.
   apply or_intror.
   assumption.
 Qed.
+
+Check eq_bigr.
+
+Lemma eq_bigr_no_pred:
+  forall [R:Type] [idx: R] [op: R->R->R] [I:Type] [r:seq I] [F1:I->R] (F2:I->R),
+    (forall i:I, F1 i = F2 i) -> 
+      \big[op/idx]_(i <- r)  F1 i =
+      \big[op/idx]_(i <- r)  F2 i.
+Proof.
+  intros R idx op I r F1 F2 H.
+  apply eq_bigr.
+  intros i H1.
+  apply H.
+Qed.
+
+Check bigop.body.
+
+Check f_equal_equal.
+Elpi say (\sum_(0 <= i < 6) (i+1)).
+Check BigBody.
+About eq_bigr_no_pred.
 
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
@@ -137,15 +141,41 @@ Elpi Db relations.db lp:{{
   step_by_context_aux X1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) _ 1 :-
     coq.unify-leq X1 Y1 ok.
 
+  step_by_context_aux (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,global True,F1 x])] as X1) (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,global True,F2 x])]) Y1 Y2 P' J :-
+    coq.locate "bigop.body" Bigop,
+    coq.locate "BigBody" Bigbo,
+    coq.locate "true" True,
+    @pi-decl N A x\ (
+        instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
+        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (Prf x) IF
+    ),
+    J is IF,
+    transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P'.
+
+  step_by_context_aux (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,P x,F1 x])] as X1) (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,P x,F2 x])]) Y1 Y2 P' J :-
+    coq.locate "bigop.body" Bigop,
+    coq.locate "BigBody" Bigbo,
+    @pi-decl N A x\ (
+      coq.string->name "H" H0,
+      fresh-name H0 (P x) H,
+      @pi-decl H (P x) h\ (
+        instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
+        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (Prf x h) IF
+      )
+    ),
+    J is IF,
+    transform_proof J X1 {{eq_bigr lp:{{fun N A F2}} lp:{{fun N A x\ (fun H (P x) h\ Prf x h)}}}} P'.
+
   step_by_context_aux (app [global Map,A,C,fun N A F1,L1] as X1) (app [global Map,A,C,fun N A F2,L2]) Y1 Y2 P' J:-
     coq.locate "map" Map,
     step_by_context_aux L1 L2 Y1 Y2 PL IL,
     @pi-decl N A x\ (
       coq.string->name "H" H0,
       fresh-name H0 {{In lp:x lp:L}} H,
-      @pi-decl H {{In lp:x lp:L}} h\
-      instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
-      step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (P x h) IF
+      @pi-decl H {{In lp:x lp:L}} h\ (
+        instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
+        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (P x h) IF
+      )
     ),
     J is IL + IF,
     transform_proof J X1 {{map_equal lp:PL lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P'.
@@ -173,8 +203,8 @@ Elpi Db relations.db lp:{{
     std.rev L2 L2',
     transform_proof I X1 P P'.
 
-  %step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 P I:-
-  %  step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P I.
+  step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 P I:-
+    step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P I.
 
   step_by_context_aux X X _ _ {{ refl_equal lp:X }} 0 :- name X.
   step_by_context_aux (global _ as C) C _ _ {{ @refl_equal Type lp:C }} 0 :- coq.typecheck-ty C _ ok.
@@ -197,7 +227,7 @@ Elpi Db relations.db lp:{{
   ].
 
   func transform_proof int,term,term -> term.
-  transform_proof 0 X _ {{eq_refl lp:X}} :-!.
+  transform_proof 0 X _ {{Corelib.Init.Logic.eq_refl lp:X}} :-!.
   transform_proof _ _ T T.
 
   pred instantiate i:name, i:term, i:term, i:argument, o:argument.
@@ -320,6 +350,17 @@ Tactic Notation "calc" ":" uconstr(te) :=
   assert(H:te).
 Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
   elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|cbv beta..].
+
+Check eq_bigr.
+Lemma sum_odd_3_bis :
+  \sum_(0 <= i < 6 | odd i) (\prod_(0<= j <9) (i + j)) = 3^2.
+Proof.
+  Search "big" "eq" (index_iota).
+  context (i + j) = (j + i).
+  apply Nat.add_comm.
+  Show Proof.
+rewrite big_mkcond big_nat_recr //= -big_mkcond /=.
+Abort.
 
 Lemma map_test:
   forall l,
