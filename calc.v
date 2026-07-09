@@ -1,7 +1,6 @@
 From Stdlib Require Import Arith.
 From Stdlib Require Import List.
 From elpi Require Import elpi.
-Require Import ssrmatching.
 
 Elpi Tactic say.
 Elpi Accumulate lp:{{
@@ -12,12 +11,11 @@ Elpi Accumulate lp:{{
 Tactic Notation (at level 0) "elprint" uconstr(te) :=
   elpi say ltac_term:(te).
 
-Check eq_trans.
 
 Lemma f_test:
   (fun i:nat => i-i) = (fun i:nat => 0).
 Proof.
-  elprint (fun i:nat => i).
+  elprint (fun i j:nat => i + j).
 Abort.
 
 Lemma f_equal_equal:
@@ -39,34 +37,40 @@ Proof.
 Qed.
 
 Lemma fold_equal:
-  forall [A B:Type] [f g:A->B->A] [l:list B] [i:A],
-    (forall [x:A] [y:B],  In y l -> f x y = g x y) -> fold_left f l i = fold_left g l i.
+  forall [A B:Type] [f g:A->B->A] [l1 l2:list B] [i1 i2:A],
+    l1 = l2 -> i1 = i2 -> (forall [x:A] [y:B],  In y l1 -> f x y = g x y) -> fold_left f l1 i1 = fold_left g l2 i2.
 Proof.
-  intros A B f g.
-  induction l;intros i H1.
+  intros A B f g l1 l2 i1 i2 H1 H2.
+  destruct H1.
+  destruct H2.
+  generalize i1.
+  induction l1.
   simpl.
-  apply eq_refl.
+  trivial.
+  intros i H.
   simpl.
-  assert (H: f i a = g i a).
-  apply H1.
+  assert (H':f i a = g i a).
+  apply H.
   simpl.
   apply or_introl.
-  apply eq_refl.
-  destruct H.
-  apply IHl.
-  intros x y H'.
-  refine (H1 x y _).
+  reflexivity.
+  destruct H'.
+  apply IHl1.
+  intros x y.
+  intro H''.
+  apply H.
   simpl.
   apply or_intror.
   assumption.
 Qed.
 
 Lemma map_equal:
-  forall [A B:Type] [f g:A->B] [l:list A],
-    (forall [x:A], In x l -> f x = g x) -> map f l = map g l.
+  forall [A B:Type] [f g:A->B] [l1 l2:list A],
+    l1 = l2 -> (forall [x:A], In x l1 -> f x = g x) -> map f l1 = map g l2.
 Proof.
-  intros A B f g l H1.
-  induction l.
+  intros A B f g l1 l2 H H1.
+  destruct H.
+  induction l1.
   simpl.
   now apply eq_refl.
   simpl.
@@ -75,27 +79,11 @@ Proof.
   simpl.
   apply or_introl.
   reflexivity.
-  apply IHl.
+  apply IHl1.
   intros x H2.
   apply H1.
   simpl.
   apply or_intror.
-  assumption.
-Qed.
-
-Lemma easy_map_equal:
-  forall [A B:Type] [f g:A->B] [l:list A],
-    (forall x, f x = g x) -> map f l = map g l.
-Proof.
-  intros A B f g.
-  induction l.
-  simpl.
-  trivial.
-  intro H1.
-  simpl.
-  f_equal.
-  apply H1.
-  apply IHl.
   assumption.
 Qed.
 
@@ -147,30 +135,49 @@ Elpi Db relations.db lp:{{
   step_by_context_aux (app [F1]) (app [F2]) Y1 Y2 P I:-
     step_by_context_aux F1 F2 Y1 Y2 P I.
   
-  step_by_context_aux X1 X2 (open-trm 0 Y1) (open-trm 0 Y2) P 1 :-
-    coq.unify-leq X1 Y1 ok,
-    coq.unify-leq X2 Y2 ok,
+  step_by_context_aux Y1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) P 1 :-
     TY = {{ lp:Y1 = lp:Y2 }},
     coq.typecheck-ty TY _ ok,
     coq.typecheck P TY ok.
 
-  step_by_context_aux (app [global Map,A,C,fun N A F1,L] as X1) (app [global Map,A,C,fun N A F2,L]) Y1 Y2 P' I:-
+  step_by_context_aux (app [global Map,A,C,fun N A F1,L1] as X1) (app [global Map,A,C,fun N A F2,L2]) Y1 Y2 P' J:-
     coq.locate "map" Map,
-    coq.string->name "H" H,
+    step_by_context_aux L1 L2 Y1 Y2 PL IL,
     @pi-decl N A x\ (
+      coq.string->name "H" H0,
+      fresh-name H0 {{In lp:x lp:L}} H,
       @pi-decl H {{In lp:x lp:L}} h\
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
-      step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (P x h) I
+      step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (P x h) IF
     ),
-    transform_proof I X1 {{map_equal lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P'.
+    J is IL + IF,
+    transform_proof J X1 {{map_equal lp:PL lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P'.
+  
+  step_by_context_aux (app [global Fold,A,B,(fun Nx A x\ fun Ny B y\ F1 x y),L1,I1] as X1) (app [global Fold,A,B,(fun Nx A x\ fun Ny B y\ F2 x y),L2,I2]) Y1 Y2 P' J :-
+    coq.locate "fold_left" Fold,
+    step_by_context_aux L1 L2 Y1 Y2 PL IL,
+    step_by_context_aux I1 I2 Y1 Y2 PI II,
+    @pi-decl Nx A x\ (
+      @pi-decl Ny B y\ (
+        coq.string->name "H" H0,
+        fresh-name H0 {{In lp:y lp:L1}} H,
+        @pi-decl H {{In lp:y lp:L1}} h\ (
+          instantiate-replacement Nx A x Y1 Y2 (Y1' x) (Y2' x),
+          instantiate-replacement Ny B y (Y1' x) (Y2' x) (Y1'' x y) (Y2'' x y),
+          step_by_context_aux (F1 x y) (F2 x y) (Y1'' x y) (Y2'' x y) (P x y h) IF
+        )
+      ) 
+    ),
+    J is IL + II + IF,
+    transform_proof J X1 {{fold_equal lp:PL lp:PI lp:{{fun Nx A x\ (fun Ny B y\ (fun H {{In lp:y lp:L1}} h\ P x y h))}}}} P'.
 
   step_by_context_aux (app [F1|L1] as X1) (app [F2|L2']) Y1 Y2 P' I :-
     app_rewrite F1 {std.rev L1} F2 L2 Y1 Y2 P I,
     std.rev L2 L2',
     transform_proof I X1 P P'.
 
-  %step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 P :-
-  %  step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P.
+  %step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 P I:-
+  %  step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P I.
 
   step_by_context_aux X X _ _ {{ refl_equal lp:X }} 0 :- name X.
   step_by_context_aux (global _ as C) C _ _ {{ @refl_equal Type lp:C }} 0 :- coq.typecheck-ty C _ ok.
@@ -207,7 +214,35 @@ Elpi Db relations.db lp:{{
   remove-binder-for N _ C (fun N1 _ F) Res :- {coq.name->id N} = {coq.name->id N1},
     Res = (F C).
   remove-binder-for N T C (fun N1 T1 F) (fun N1 T1 F1) :-
-    @pi-decl N1 T1 x \ remove-binder-for N T C (F x) (F1 x).
+    @pi-decl N1 T1 x \ remove-binder-for N T C (F x) (F1 x). 
+
+  pred preserve_bound_variables i:term o:term.
+
+  preserve_bound_variables I O :-
+    (((pi N T F N1 T1 F1 \
+      copy (fun N T F) (fun N1 T1 F1) :-!,
+      copy T T1,
+      fresh-name N T N1,
+      (@pi-decl N1 T1 x\
+        copy (F x) (F1 x))),
+      (pi B B1 N T F N1 T1 F1 \
+        copy (let N T B F)(let N1 T1 B1 F1) :-!,
+          copy T T1,
+          copy B B1,
+          fresh-name N T N1,
+          (@pi-decl N1 T1 x\ copy (F x) (F1 x))),
+      (pi N T F N1 T1 F1 \
+        copy (prod N T F) (prod N1 T1 F1) :-!,
+          copy T T1,
+          fresh-name N T N1,
+          (@pi-decl N1 T1 x\
+            copy (F x) (F1 x)))) => copy I O).
+
+  pred fresh-name i:name, i:term, o:name.
+
+  fresh-name N T M :-
+    coq.ltac.fresh-id {coq.name->id N} T Mi,
+    coq.id->name Mi M.
 }}.
 
 Elpi Command add_transitivity.
@@ -269,12 +304,14 @@ Elpi Accumulate lp:{{
 Elpi Tactic context.
 Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
-  solve (goal _ _ E _ [(open-trm _ _ as Y1),(open-trm _ _ as Y2)] as G) GL :-
-    step_by_context E Y1 Y2 T, !,
+  solve (goal _ _ E0 _ [(open-trm _ _ as Y1),(open-trm _ _ as Y2)] as G) GL :-
+    preserve_bound_variables E0 E,
+    step_by_context E Y1 Y2 T,
     if (refine T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
   solve _ _ :-
     coq.ltac.fail _ "Unable to fullfill the rewrite".
 }}.
+
 
 Tactic Notation "step" uconstr(te) := elpi step ltac_term:(te).
 Tactic Notation "step" uconstr(te) "by" tactic(ta) :=
@@ -287,23 +324,36 @@ Tactic Notation "calc" ":" uconstr(te) :=
 Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
   elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|cbv beta..].
 
-Lemma fold_test:
-  forall l : list nat,
-    map (fun i => (i-i)) l = map (fun i => 0) l.
+Lemma map_test:
+    map (fun i => (i-i)) (1::2::3::nil) = map (fun i => 0) (1::2::3::nil).
 Proof.
-  intro l.
   context (i-i) = (0).
   apply Nat.sub_diag.
 Abort.
+
+Lemma test14:
+  forall acc i,
+    0 + i + acc = 0 + i + (acc + 0).
+Proof.
+  intros acc i.
+  context acc = (acc + 0).
+  apply eq_sym.
+  apply Nat.add_0_r.
+Qed.
+
+Lemma fold_test:
+    fold_left (fun acc i => 0 + i + acc) nil 0 = fold_left (fun acc i => 0 + i + (acc + 0)) nil 0.
+Proof.
+  context (acc) = (acc + 0).
 
 Import Nat.
 Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
 Proof.
 step (_ = (a+b)*c + (a+b)*d).
   now apply mul_add_distr_l.
-context (_*c) = (a*c + b*c).
+context ((a+b)*c) = (a*c + b*c).
   now apply mul_add_distr_r.
-context (_*d) = (a*d + b*d).
+context ((a+b)*d) = (a*d + b*d).
   now apply mul_add_distr_r.
 step (_ = a*c + b*c + a*d + b*d).
   now apply add_assoc.
@@ -312,7 +362,7 @@ context (a*c + b*c + a*d) = (a*c + (b*c + a*d)).
   now apply add_assoc.
 context (b*c + a*d) = (a*d + b*c).
   now apply add_comm.
-context (_ + (_ + _) ) = ( a*c + a*d + b*c).
+context (a*c + (a*d + b*c) ) = ( a*c + a*d + b*c).
   now apply add_assoc.
 Qed.
 
@@ -322,9 +372,9 @@ step (_ = (a+b)*(a+b)).
   now apply pow_2_r.
 step (_ = (a+b)*a + (a+b)*b).
   now apply mul_add_distr_l.
-context (_*a ) = (a*a + b*a).
+context ((a+b)*a) = (a*a + b*a).
   now apply mul_add_distr_r.
-context (_*b ) = (a*b + b*b).
+context ((a+b)*b) = (a*b + b*b).
   now apply mul_add_distr_r.
 step (_ = a*a + b*a + a*b + b*b).
   now apply add_assoc.
@@ -333,7 +383,7 @@ context (a*a) = (a^2).
   now apply pow_2_r.
 context (b*a) = (a*b).
   now apply mul_comm.
-context (a^2 + _ + _ ) = ( a^2 + (a*b + a*b)).
+context (a^2 + a*b + a*b ) = ( a^2 + (a*b + a*b)).
   apply eq_sym.
   now apply add_assoc.
 context (a*b + a*b) = ( 2*(a*b)).
