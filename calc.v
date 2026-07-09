@@ -1,21 +1,24 @@
 From Stdlib Require Import Arith.
 From Stdlib Require Import List.
 From elpi Require Import elpi.
+From mathcomp Require Import bigop.
+
 
 Elpi Tactic say.
 Elpi Accumulate lp:{{
-  solve (goal _ _ _ _ [trm F]) _ :-
-    coq.say F.
+  solve (goal _ _ _ _ [trm F1,trm F2]) _ :-
+    coq.unify-leq F1 F2 ok,
+    coq.say F1 F2.
 }}.
 
-Tactic Notation (at level 0) "elprint" uconstr(te) :=
-  elpi say ltac_term:(te).
+Tactic Notation (at level 0) "elprint" uconstr(te) uconstr(te):=
+  elpi say ltac_term:(te) ltac_term:(te).
 
 
 Lemma f_test:
   (fun i:nat => i-i) = (fun i:nat => 0).
 Proof.
-  elprint (fun i j:nat => i + j).
+  elprint (fun i:nat => i) (fun i:nat => i).
 Abort.
 
 Lemma f_equal_equal:
@@ -31,7 +34,6 @@ Lemma f_equal_relat:
     x = y -> f y z -> f x z.
 Proof.
   intros A B f x y z H1 H2.
-  apply eq_sym in H1.
   destruct H1.
   assumption.
 Qed.
@@ -111,7 +113,6 @@ Elpi Db relations.db lp:{{
   step _ _ _ :-
     coq.ltac.fail _ "No applicable rule".
 
-
   pred step_by_context i:term, i:argument, i:argument, o:term.
   step_by_context E Y1 Y2 P' :-
     E = app L,
@@ -132,13 +133,9 @@ Elpi Db relations.db lp:{{
     ).
 
   pred step_by_context_aux i:term, o:term, i:argument, i:argument, o:term, o:int.
-  step_by_context_aux (app [F1]) (app [F2]) Y1 Y2 P I:-
-    step_by_context_aux F1 F2 Y1 Y2 P I.
-  
-  step_by_context_aux Y1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) P 1 :-
-    TY = {{ lp:Y1 = lp:Y2 }},
-    coq.typecheck-ty TY _ ok,
-    coq.typecheck P TY ok.
+
+  step_by_context_aux X1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) _ 1 :-
+    coq.unify-leq X1 Y1 ok.
 
   step_by_context_aux (app [global Map,A,C,fun N A F1,L1] as X1) (app [global Map,A,C,fun N A F2,L2]) Y1 Y2 P' J:-
     coq.locate "map" Map,
@@ -325,26 +322,27 @@ Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
   elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|cbv beta..].
 
 Lemma map_test:
-    map (fun i => (i-i)) (1::2::3::nil) = map (fun i => 0) (1::2::3::nil).
+  forall l,
+    map (fun i => map (fun j => i + j + 0) (0::nil)) l = map (fun i => i::nil) l.
 Proof.
-  context (i-i) = (0).
-  apply Nat.sub_diag.
-Abort.
-
-Lemma test14:
-  forall acc i,
-    0 + i + acc = 0 + i + (acc + 0).
-Proof.
-  intros acc i.
-  context acc = (acc + 0).
-  apply eq_sym.
+  intro l.
+  context (i + j + 0) = (i + j).
+  apply Nat.add_0_r.
+  context (map (fun j: nat => i+j) (0::nil)) = (i::nil).
+  simpl.
+  f_equal.
   apply Nat.add_0_r.
 Qed.
 
 Lemma fold_test:
-    fold_left (fun acc i => 0 + i + acc) nil 0 = fold_left (fun acc i => 0 + i + (acc + 0)) nil 0.
+  forall l,
+    fold_left (fun acc i => acc + i) l 0 = fold_left (fun acc i => acc + (i + 0)) l 0.
 Proof.
-  context (acc) = (acc + 0).
+  intro l.
+  context (i) = (i + 0).
+  apply eq_sym.
+  apply Nat.add_0_r.
+Qed.
 
 Import Nat.
 Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
@@ -387,7 +385,10 @@ context (a^2 + a*b + a*b ) = ( a^2 + (a*b + a*b)).
   apply eq_sym.
   now apply add_assoc.
 context (a*b + a*b) = ( 2*(a*b)).
-  now apply f_equal2 with (f:=plus); trivial.
+  apply f_equal2 with (f:=plus).
+  trivial.
+  apply eq_sym.
+  apply Nat.add_0_r.
 context (b*b ) = ( b^2).
   apply eq_sym.
   now apply pow_2_r.
