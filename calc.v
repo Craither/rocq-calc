@@ -86,6 +86,14 @@ Proof.
   apply H.
 Qed.
 
+Search "eq" "big".
+
+Goal \sum_(0<= i < 2) i = 0.
+Proof.
+  Search "eq" "big" (mem).
+  rewrite (eq_big_seq (fun i => i + i)).
+Abort.
+
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
   pred incl o:term, o:term, o:term.
@@ -132,13 +140,13 @@ Elpi Db relations.db lp:{{
   pred step_by_context_aux i:term, o:term, i:argument, i:argument, o:term, o:int.
 
   step_by_context_aux X1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) _ 1 :-
+    coq.typecheck X1 Ty ok,
+    coq.typecheck Y2 Ty ok,
     coq.unify-leq X1 Y1 ok.
 
-  step_by_context_aux (app [global Bigop,A,B,I,(app [global Index,N1,N2] as L),(fun N A x\ app [global Bigbo,A,B,x,OP,global True,F1 x])] as X1) (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,OP,global True,F2 x])]) Y1 Y2 P' J :-
-    coq.locate "bigop.body" Bigop,
-    coq.locate "BigBody" Bigbo,
-    coq.locate "index_iota" Index,
-    coq.locate "true" True,
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- index_iota lp:N1 lp:N2) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- index_iota lp:N1 lp:N2) lp:(F2 i) }} Y1 Y2 P' J :-
+    X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
+    coq.typecheck Idx A ok,
     @pi-decl N A x\ (
       coq.string->name "H" H0,
       fresh-name H0 {{lp:N1 <= lp:x < lp:N2}} H,
@@ -150,10 +158,9 @@ Elpi Db relations.db lp:{{
     J is IF,
     transform_proof J X1 {{eq_big_nat _ _ lp:{{fun N A x\ (fun H {{lp:N1 <= lp:x < lp:N2 }} h\ Prf x h)}}}} P'.
 
-  step_by_context_aux (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,global True,F1 x])] as X1) (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,global True,F2 x])]) Y1 Y2 P' J :-
-    coq.locate "bigop.body" Bigop,
-    coq.locate "BigBody" Bigbo,
-    coq.locate "true" True,
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 P' J :-
+    X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
+    coq.typecheck Idx A ok,
     @pi-decl N A x\ (
         instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
         step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (Prf x) IF
@@ -161,9 +168,9 @@ Elpi Db relations.db lp:{{
     J is IF,
     transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P'.
 
-  step_by_context_aux (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,P x,F1 x])] as X1) (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,P x,F2 x])]) Y1 Y2 P' J :-
-    coq.locate "bigop.body" Bigop,
-    coq.locate "BigBody" Bigbo,
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P i)) lp:(F2 i) }} Y1 Y2 P' J :-
+    X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
+    coq.typecheck Idx A ok,
     @pi-decl N A x\ (
       coq.string->name "H" H0,
       fresh-name H0 (P x) H,
@@ -360,21 +367,6 @@ Tactic Notation "calc" ":" uconstr(te) :=
 Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
   elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|cbv beta..].
 
-Lemma sum_test1:
-  \sum_(0 <= i < 6) (\prod_(7<= j < 9) (i + j)) = \sum_(0 <= i < 6) (\prod_(7<= j < 9) (j + i)).
-Proof.
-  context (i + j) = (j + i).
-  Show Proof.
-  apply Nat.add_comm.
-Qed.
-
-Lemma sum_test2:
-  \sum_(0 <= i < 6| odd i) (i + 0) = 3^2.
-Proof.
-  context (i+0) = i.
-  apply Nat.add_0_r.
-Abort.
-
 Lemma map_test:
   forall l,
     map (fun i => map (fun j => i + j + 0) (0::nil)) l = map (fun i => i::nil) l.
@@ -382,21 +374,33 @@ Proof.
   intro l.
   context (i + j + 0) = (i + j).
   apply Nat.add_0_r.
-  context (map (fun j: nat => i+j) (0::nil)) = (i::nil).
-  simpl.
-  f_equal.
-  apply Nat.add_0_r.
-Qed.
+Abort.
 
 Lemma fold_test:
   forall l,
-    fold_left (fun acc i => acc + i) l 0 = fold_left (fun acc i => acc + (i + 0)) l 0.
+    fold_left (fun acc i => acc*i + 2) l 0 = fold_left (fun acc i => acc*i + 0 + 2) l 0.
 Proof.
   intro l.
-  context (i) = (i + 0).
+  Set Debug "backtrace".
+  context (acc*i) = (acc*i + 0).
   apply Logic.eq_sym.
   apply Nat.add_0_r.
 Qed.
+
+Lemma sum_test1:
+  \sum_(0 <= i < 6) (\prod_(7<= j < 9) (i + j)) = \sum_(0 <= i < 6) (\prod_(7<= j < 9) (j + i)).
+Proof.
+  context (i + j) = (j + i).
+  apply Nat.add_comm.
+  Show Proof.
+Qed.
+
+Lemma sum_test2:
+  \sum_(0 <= i < 6 | odd i) (i + 0) = 3^2.
+Proof.
+  context (i+0) = i.
+  apply Nat.add_0_r.
+Abort.
 
 Import Nat.
 Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
