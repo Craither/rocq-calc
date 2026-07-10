@@ -86,15 +86,6 @@ Proof.
   apply H.
 Qed.
 
-Check bigop.body.
-
-Check f_equal_equal.
-Elpi say (\prod_(0 <= i < 6) (i+1)).
-Check In.
-Check index_iota.
-Check BigBody.
-About eq_bigr_no_pred.
-
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
   pred incl o:term, o:term, o:term.
@@ -403,7 +394,7 @@ Lemma fold_test:
 Proof.
   intro l.
   context (i) = (i + 0).
-  apply eq_sym.
+  apply Logic.eq_sym.
   apply Nat.add_0_r.
 Qed.
 
@@ -464,8 +455,9 @@ step (_ = a^2 + b^2 + 2*(a*b)).
   now apply add_assoc.
 Qed.
 
+Open Scope nat_scope.
 
-Lemma test4 a b c : 2 * (a * b + b * c + c * a) <= (a + b + c) ^2.
+Lemma test4 a b c : ((2 * (a * b + b * c + c * a)) <= ((a + b + c) ^2))%coq_nat.
 Proof.
 step (_ = 2*(a*b) + 2*(b*c) + 2*(c*a)).
   step (_ = 2*(a*b + b*c) + 2*(c*a)).
@@ -473,8 +465,8 @@ step (_ = 2*(a*b) + 2*(b*c) + 2*(c*a)).
   apply f_equal2 with (f:=plus).
   2:trivial.
   now apply mul_add_distr_l.
-step  (_ <= a^2 + b^2 + c^2 + 2*(a*b) + 2*(b*c) + 2*(c*a)).
-  step  (2*(a*b) + 2*(b*c) + 2*(c*a) <= 2*(a*b) + 2*(b*c) + 2*(c*a) + (a^2 + b^2 + c^2)).
+step  (_ <= a^2 + b^2 + c^2 + 2*(a*b) + 2*(b*c) + 2*(c*a))%coq_nat.
+  step  (2*(a*b) + 2*(b*c) + 2*(c*a) <= 2*(a*b) + 2*(b*c) + 2*(c*a) + (a^2 + b^2 + c^2))%coq_nat.
     now apply le_add_r.
   step (_ = a^2 + b^2 + c^2 + (2*(a*b) + 2*(b*c) + 2*(c*a))).
     now apply add_comm.
