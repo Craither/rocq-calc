@@ -89,7 +89,9 @@ Qed.
 Check bigop.body.
 
 Check f_equal_equal.
-Elpi say (\sum_(0 <= i < 6) (i+1)).
+Elpi say (\prod_(0 <= i < 6) (i+1)).
+Check In.
+Check index_iota.
 Check BigBody.
 About eq_bigr_no_pred.
 
@@ -140,6 +142,22 @@ Elpi Db relations.db lp:{{
 
   step_by_context_aux X1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) _ 1 :-
     coq.unify-leq X1 Y1 ok.
+
+  step_by_context_aux (app [global Bigop,A,B,I,(app [global Index,N1,N2] as L),(fun N A x\ app [global Bigbo,A,B,x,OP,global True,F1 x])] as X1) (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,OP,global True,F2 x])]) Y1 Y2 P' J :-
+    coq.locate "bigop.body" Bigop,
+    coq.locate "BigBody" Bigbo,
+    coq.locate "index_iota" Index,
+    coq.locate "true" True,
+    @pi-decl N A x\ (
+      coq.string->name "H" H0,
+      fresh-name H0 {{lp:N1 <= lp:x < lp:N2}} H,
+      @pi-decl H {{lp:N1 <= lp:x < lp:N2}} h\ (
+        instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
+        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (Prf x h) IF
+      )
+    ),
+    J is IF,
+    transform_proof J X1 {{eq_big_nat _ _ lp:{{fun N A x\ (fun H {{lp:N1 <= lp:x < lp:N2 }} h\ Prf x h)}}}} P'.
 
   step_by_context_aux (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,global True,F1 x])] as X1) (app [global Bigop,A,B,I,L,(fun N A x\ app [global Bigbo,A,B,x,F,global True,F2 x])]) Y1 Y2 P' J :-
     coq.locate "bigop.body" Bigop,
@@ -351,15 +369,19 @@ Tactic Notation "calc" ":" uconstr(te) :=
 Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
   elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|cbv beta..].
 
-Check eq_bigr.
-Lemma sum_odd_3_bis :
-  \sum_(0 <= i < 6 | odd i) (\prod_(0<= j <9) (i + j)) = 3^2.
+Lemma sum_test1:
+  \sum_(0 <= i < 6) (\prod_(7<= j < 9) (i + j)) = \sum_(0 <= i < 6) (\prod_(7<= j < 9) (j + i)).
 Proof.
-  Search "big" "eq" (index_iota).
   context (i + j) = (j + i).
-  apply Nat.add_comm.
   Show Proof.
-rewrite big_mkcond big_nat_recr //= -big_mkcond /=.
+  apply Nat.add_comm.
+Qed.
+
+Lemma sum_test2:
+  \sum_(0 <= i < 6| odd i) (i + 0) = 3^2.
+Proof.
+  context (i+0) = i.
+  apply Nat.add_0_r.
 Abort.
 
 Lemma map_test:
