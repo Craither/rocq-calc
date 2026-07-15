@@ -14,11 +14,15 @@ Proof.
   exact (eq_trans (f_equal (fun f : A -> B => f x1) H1) (f_equal f2 H2)).
   Show Proof.
 Qed.
+Set Printing All.
+Check ( _ : _).
+Check ((nat):eqType).
 
 Elpi Command say.
 Elpi Accumulate lp:{{
-  main L :-
-    coq.say L.
+  main [trm F] :-
+    coq.say F,
+    coq.typecheck-ty {{lp:F:(eqType)}} _ ok.
 }}.
 
 Lemma fold_equal:
@@ -86,7 +90,55 @@ Proof.
   apply H.
 Qed.
 
-Search "eq" "big".
+Lemma eq_big_all:
+  forall [R:Type] [idx:R] [op: R->R->R] [I:eqType] [r:seq I] [P1:pred I] (P2:pred I) [F1:I->R] (F2:I->R),
+  {in r, P1 =1 P2} ->
+  (forall i:I, i \in r -> P1 i -> F1 i = F2 i) ->
+  \big[op/idx]_(i <- r | P1 i)  F1 i = \big[op/idx]_(i <- r | P2 i)  F2 i.
+Proof.
+  intros R idx op I r P1 P2 F1 F2 H1 H2.
+  transitivity (\big[op/idx]_(i <- r | (i \in r) && P1 i)  F1 i).
+  apply big_seq_cond.
+  transitivity ((\big[op/idx]_(i <- r | (i \in r) && P2 i)  F2 i)).
+  apply eq_big.
+  intro i.
+  apply Bool.eq_true_iff_eq.
+  firstorder.
+  apply andb_true_intro.
+  apply conj.
+  apply andb_prop in H.
+  destruct H.
+  assumption.
+  apply andb_prop in H.
+  destruct H.
+  transitivity (P1 i).
+  2:assumption.
+  rewrite H1.
+  reflexivity.
+  apply H.
+  apply andb_true_intro.
+  apply conj.
+  apply andb_prop in H.
+  destruct H.
+  assumption.
+  apply andb_prop in H.
+  destruct H.
+  transitivity (P1 i).
+  reflexivity.
+  rewrite H1.
+  apply H0.
+  apply H.
+  intros i H3.
+  apply H2.
+  apply andb_prop in H3.
+  destruct H3.
+  apply H.
+  apply andb_prop in H3.
+  destruct H3.
+  apply H0.
+  apply Logic.eq_sym.
+  apply big_seq_cond.
+Qed.
 
 Goal \sum_(0<= i < 2) i = 0.
 Proof.
@@ -168,19 +220,21 @@ Elpi Db relations.db lp:{{
     J is IF,
     transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P i)) lp:(F2 i) }} Y1 Y2 P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 P' J :-
     X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
     coq.typecheck Idx A ok,
     @pi-decl N A x\ (
       coq.string->name "H" H0,
       fresh-name H0 (P x) H,
-      @pi-decl H (P x) h\ (
-        instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
-        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (Prf x h) IF
+      instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
+      step_by_context_aux (P1 x) (P2 x) (Y1' x) (Y2' x) (PP x) IP,
+      @pi-decl H (P1 x) h\ (
+        step_by_context_aux (F1 x) (F2 x) (Y1' x) (Y2' x) (PF x h) IF
       )
     ),
-    J is IF,
-    transform_proof J X1 {{eq_bigr lp:{{fun N A F2}} lp:{{fun N A x\ (fun H (P x) h\ Prf x h)}}}} P'.
+    J is IF + IP,
+    transform_proof J X1 {{eq_big lp:{{fun N A P2}} lp:{{fun N A F2}} lp:{{fun N A PP}} lp:{{fun N A x\ (fun H (P x) h\ PF x h)}}}} P'.
+
 
   step_by_context_aux (app [global Map,A,C,fun N A F1,L1] as X1) (app [global Map,A,C,fun N A F2,L2]) Y1 Y2 P' J:-
     coq.locate "map" Map,
@@ -355,7 +409,6 @@ Elpi Accumulate lp:{{
     coq.ltac.fail _ "Unable to fullfill the rewrite".
 }}.
 
-
 Tactic Notation "step" uconstr(te) := elpi step ltac_term:(te).
 Tactic Notation "step" uconstr(te) "by" tactic(ta) :=
   elpi step ltac_term:(te); [solve[ta]..|idtac].
@@ -381,7 +434,6 @@ Lemma fold_test:
     fold_left (fun acc i => acc*i + 2) l 0 = fold_left (fun acc i => acc*i + 0 + 2) l 0.
 Proof.
   intro l.
-  Set Debug "backtrace".
   context (acc*i) = (acc*i + 0).
   apply Logic.eq_sym.
   apply Nat.add_0_r.
@@ -396,9 +448,12 @@ Proof.
 Qed.
 
 Lemma sum_test2:
-  \sum_(0 <= i < 6 | odd i) (i + 0) = 3^2.
+  \sum_(0 <= i < 6 | (i + 2) == 6) (i) = 3^2.
 Proof.
-  context (i+0) = i.
+  context i = (i + 0).
+  apply Logic.eq_sym.
+  apply Nat.add_0_r.
+  apply Logic.eq_sym.
   apply Nat.add_0_r.
 Abort.
 
