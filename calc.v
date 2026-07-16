@@ -2,7 +2,6 @@ From Stdlib Require Import Arith.
 From Stdlib Require Import List.
 From elpi Require Import elpi.
 From mathcomp Require Import all_ssreflect.
-From mathcomp Require Import ssrnat ssrbool seq.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
