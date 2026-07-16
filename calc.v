@@ -2,6 +2,7 @@ From Stdlib Require Import Arith.
 From Stdlib Require Import List.
 From elpi Require Import elpi.
 From mathcomp Require Import all_ssreflect.
+From mathcomp Require Import ssrnat ssrbool seq.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -14,16 +15,19 @@ Proof.
   exact (eq_trans (f_equal (fun f : A -> B => f x1) H1) (f_equal f2 H2)).
   Show Proof.
 Qed.
-Set Printing All.
-Check ( _ : _).
-Check ((nat):eqType).
+
+Check (Datatypes_nat__canonical__eqtype_Equality:eqType).
 
 Elpi Command say.
 Elpi Accumulate lp:{{
   main [trm F] :-
     coq.say F,
-    coq.typecheck-ty {{lp:F:(eqType)}} _ ok.
+    coq.elaborate-skeleton F {{eqType}} F' ok,
+    coq.say F'.
 }}.
+
+Elpi say (Datatypes_nat__canonical__eqtype_Equality).
+Elpi say ((nat*nat)%type).
 
 Lemma fold_equal:
   forall [A B:Type] [f g:A->B->A] [l1 l2:list B] [i1 i2:A],
@@ -140,11 +144,7 @@ Proof.
   apply big_seq_cond.
 Qed.
 
-Goal \sum_(0<= i < 2) i = 0.
-Proof.
-  Search "eq" "big" (mem).
-  rewrite (eq_big_seq (fun i => i + i)).
-Abort.
+Search "big" "eq".
 
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
@@ -174,7 +174,7 @@ Elpi Db relations.db lp:{{
   step_by_context E Y1 Y2 P' :-
     E = app L,
     std.rev L [X2,X1|_],
-    step_by_context_aux X1 V Y1 Y2 P J,
+    step_by_context_aux X1 V Y1 Y2 _ P J,
     if (J = 0)(
       coq.ltac.fail _ "Pattern not found"
     ) (
@@ -189,71 +189,91 @@ Elpi Db relations.db lp:{{
       ) 
     ).
 
-  pred step_by_context_aux i:term, o:term, i:argument, i:argument, o:term, o:int.
+  pred step_by_context_aux i:term, o:term, i:argument, i:argument, i:term, o:term, o:int.
 
-  step_by_context_aux X1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) _ 1 :-
+  step_by_context_aux X1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) P P 1 :-
     coq.typecheck X1 Ty ok,
     coq.typecheck Y2 Ty ok,
     coq.unify-leq X1 Y1 ok.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- index_iota lp:N1 lp:N2) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- index_iota lp:N1 lp:N2) lp:(F2 i) }} Y1 Y2 P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
     coq.typecheck Idx A ok,
+    coq.elaborate-skeleton A {{eqType}} _ ok,
     @pi-decl N A x\ (
+      instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       coq.string->name "H" H0,
-      fresh-name H0 {{lp:N1 <= lp:x < lp:N2}} H,
-      @pi-decl H {{lp:N1 <= lp:x < lp:N2}} h\ (
-        instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
-        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (Prf x h) IF
+      fresh-name H0 {{lp:x \in lp:L}} H,
+      @pi-decl H {{lp:x \in lp:L}} h\ (
+        step_by_context_aux (F1 x) (F2 x) (Y1' x) (Y2' x) _ (Prf x h) IF
       )
     ),
     J is IF,
-    transform_proof J X1 {{eq_big_nat _ _ lp:{{fun N A x\ (fun H {{lp:N1 <= lp:x < lp:N2 }} h\ Prf x h)}}}} P'.
+    transform_proof J X1 {{eq_big_seq lp:{{fun N A F2}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ Prf x h)}}}} P'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
+    X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
+    coq.typecheck Idx A ok,
+    coq.elaborate-skeleton A {{eqType}} _ ok,
+    @pi-decl N A x\ (
+      instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
+      coq.string->name "H" H0,
+      fresh-name H0 {{lp:x \in lp:L}} H,
+      @pi-decl H {{lp:x \in lp:L}} h\ (
+        step_by_context_aux (P1 x) (P2 x) (Y1' x) (Y2' x) _ (PP x h) IP,
+        fresh-name H0 (P1 x) H',
+        @pi-decl H' (P1 x) h'\ (
+          step_by_context_aux (F1 x) (F2 x) (Y1' x) (Y2' x) _ (PF x h h') IF
+        )
+      )
+    ),
+    J is IP + IF,
+    transform_proof J X1 {{eq_big_all lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ PP x h)}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ (fun H' (P1 x) h'\ PF x h h'))}}}} P'.
+
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
     coq.typecheck Idx A ok,
     @pi-decl N A x\ (
         instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
-        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (Prf x) IF
+        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) _ (Prf x) IF
     ),
     J is IF,
     transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
     coq.typecheck Idx A ok,
     @pi-decl N A x\ (
       coq.string->name "H" H0,
       fresh-name H0 (P x) H,
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
-      step_by_context_aux (P1 x) (P2 x) (Y1' x) (Y2' x) (PP x) IP,
+      step_by_context_aux (P1 x) (P2 x) (Y1' x) (Y2' x) _ (PP x) IP,
       @pi-decl H (P1 x) h\ (
-        step_by_context_aux (F1 x) (F2 x) (Y1' x) (Y2' x) (PF x h) IF
+        step_by_context_aux (F1 x) (F2 x) (Y1' x) (Y2' x) _ (PF x h) IF
       )
     ),
     J is IF + IP,
     transform_proof J X1 {{eq_big lp:{{fun N A P2}} lp:{{fun N A F2}} lp:{{fun N A PP}} lp:{{fun N A x\ (fun H (P x) h\ PF x h)}}}} P'.
 
 
-  step_by_context_aux (app [global Map,A,C,fun N A F1,L1] as X1) (app [global Map,A,C,fun N A F2,L2]) Y1 Y2 P' J:-
+  step_by_context_aux (app [global Map,A,C,fun N A F1,L1] as X1) (app [global Map,A,C,fun N A F2,L2]) Y1 Y2 T P' J :-
     coq.locate "map" Map,
-    step_by_context_aux L1 L2 Y1 Y2 PL IL,
+    step_by_context_aux L1 L2 Y1 Y2 T PL IL,
     @pi-decl N A x\ (
       coq.string->name "H" H0,
       fresh-name H0 {{In lp:x lp:L}} H,
       @pi-decl H {{In lp:x lp:L}} h\ (
         instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
-        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) (P x h) IF
+        step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) _ (P x h) IF
       )
     ),
     J is IL + IF,
     transform_proof J X1 {{map_equal lp:PL lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P'.
   
-  step_by_context_aux (app [global Fold,A,B,(fun Nx A x\ fun Ny B y\ F1 x y),L1,I1] as X1) (app [global Fold,A,B,(fun Nx A x\ fun Ny B y\ F2 x y),L2,I2]) Y1 Y2 P' J :-
+  step_by_context_aux (app [global Fold,A,B,(fun Nx A x\ fun Ny B y\ F1 x y),L1,I1] as X1) (app [global Fold,A,B,(fun Nx A x\ fun Ny B y\ F2 x y),L2,I2]) Y1 Y2 T P' J :-
     coq.locate "fold_left" Fold,
-    step_by_context_aux L1 L2 Y1 Y2 PL IL,
-    step_by_context_aux I1 I2 Y1 Y2 PI II,
+    step_by_context_aux L1 L2 Y1 Y2 T PL IL,
+    step_by_context_aux I1 I2 Y1 Y2 T PI II,
     @pi-decl Nx A x\ (
       @pi-decl Ny B y\ (
         coq.string->name "H" H0,
@@ -261,32 +281,32 @@ Elpi Db relations.db lp:{{
         @pi-decl H {{In lp:y lp:L1}} h\ (
           instantiate-replacement Nx A x Y1 Y2 (Y1' x) (Y2' x),
           instantiate-replacement Ny B y (Y1' x) (Y2' x) (Y1'' x y) (Y2'' x y),
-          step_by_context_aux (F1 x y) (F2 x y) (Y1'' x y) (Y2'' x y) (P x y h) IF
+          step_by_context_aux (F1 x y) (F2 x y) (Y1'' x y) (Y2'' x y) _ (P x y h) IF
         )
       ) 
     ),
     J is IL + II + IF,
     transform_proof J X1 {{fold_equal lp:PL lp:PI lp:{{fun Nx A x\ (fun Ny B y\ (fun H {{In lp:y lp:L1}} h\ P x y h))}}}} P'.
 
-  step_by_context_aux (app [F1|L1] as X1) (app [F2|L2']) Y1 Y2 P' I :-
-    app_rewrite F1 {std.rev L1} F2 L2 Y1 Y2 P I,
+  step_by_context_aux (app [F1|L1] as X1) (app [F2|L2']) Y1 Y2 H P' I :-
+    app_rewrite F1 {std.rev L1} F2 L2 Y1 Y2 H P I,
     std.rev L2 L2',
     transform_proof I X1 P P'.
 
-  step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 P I:-
-    step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 P I.
+  step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 H P I:-
+    step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 H P I.
 
-  step_by_context_aux X X _ _ {{ refl_equal lp:X }} 0 :- name X.
-  step_by_context_aux (global _ as C) C _ _ {{ @refl_equal Type lp:C }} 0 :- coq.typecheck-ty C _ ok.
-  step_by_context_aux (global _ as C) C _ _ {{ refl_equal lp:C }} 0.
+  step_by_context_aux X X _ _ _ {{ refl_equal lp:X }} 0 :- name X.
+  step_by_context_aux (global _ as C) C _ _ _ {{ @refl_equal Type lp:C }} 0 :- coq.typecheck-ty C _ ok.
+  step_by_context_aux (global _ as C) C _ _ _ {{ refl_equal lp:C }} 0.
 
-  pred app_rewrite i:term, i:list term, o:term, o:list term, i:argument, i:argument, o:term, o:int.
-  app_rewrite F1 [] F2 [] Y1 Y2 PF I :-
-    step_by_context_aux F1 F2 Y1 Y2 PF I.
+  pred app_rewrite i:term, i:list term, o:term, o:list term, i:argument, i:argument, i:term, o:term, o:int.
+  app_rewrite F1 [] F2 [] Y1 Y2 H PF I :-
+    step_by_context_aux F1 F2 Y1 Y2 H PF I.
 
-  app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 P' J:-
-    step_by_context_aux X1 X2 Y1 Y2 PX IX,
-    app_rewrite F1 L1 F2 L2 Y1 Y2 PF IF,
+  app_rewrite F1 [X1|L1] F2 [X2|L2] Y1 Y2 H P' J:-
+    step_by_context_aux X1 X2 Y1 Y2 H PX IX,
+    app_rewrite F1 L1 F2 L2 Y1 Y2 H PF IF,
     J is IX + IF,
     transform_proof J (app [F1,X1|L1]) {{f_equal_equal lp:PF lp:PX}} P'.
 
@@ -448,7 +468,7 @@ Proof.
 Qed.
 
 Lemma sum_test2:
-  \sum_(0 <= i < 6 | (i + 2) == 6) (i) = 3^2.
+  \sum_(0 <= i < 6 | (i + 2) == 6) (i+i) = 3^2.
 Proof.
   context i = (i + 0).
   apply Logic.eq_sym.
