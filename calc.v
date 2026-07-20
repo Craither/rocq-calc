@@ -2,6 +2,7 @@ From Stdlib Require Import Arith.
 From Stdlib Require Import List.
 From elpi Require Import elpi.
 From mathcomp Require Import all_ssreflect.
+Require Import ssrmatching.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
@@ -12,21 +13,23 @@ Lemma f_equal_equal:
 Proof.
   intros A B f1 f2 x1 x2 H1 H2.
   exact (eq_trans (f_equal (fun f : A -> B => f x1) H1) (f_equal f2 H2)).
-  Show Proof.
 Qed.
 
-Check (Datatypes_nat__canonical__eqtype_Equality:eqType).
+Lemma f_equal_extensionality:
+  forall [A B:Type] [f1 f2: A->B] [x1 x2:A],
+    (forall x:A, f1 x = f2 x) -> x1 = x2 -> f1 x1 = f2 x2.
+Proof.
+  intros A B f1 f2 x1 x2 H1 H2.
+  rewrite H2.
+  apply H1.
+Qed.
+
 
 Elpi Command say.
 Elpi Accumulate lp:{{
   main [trm F] :-
-    coq.say F,
-    coq.elaborate-skeleton F {{eqType}} F' ok,
-    coq.say F'.
+    coq.say F.
 }}.
-
-Elpi say (Datatypes_nat__canonical__eqtype_Equality).
-Elpi say ((nat*nat)%type).
 
 Lemma fold_equal:
   forall [A B:Type] [f g:A->B->A] [l1 l2:list B] [i1 i2:A],
@@ -143,7 +146,7 @@ Proof.
   apply big_seq_cond.
 Qed.
 
-Search "big" "eq".
+Check eq_big_seq.
 
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
@@ -190,15 +193,17 @@ Elpi Db relations.db lp:{{
 
   pred step_by_context_aux i:term, o:term, i:argument, i:argument, i:term, o:term, o:int.
 
-  step_by_context_aux X1 Y2 (open-trm 0 Y1) (open-trm 0 Y2) P P 1 :-
+  step_by_context_aux X1 Y2' (open-trm 0 Y1) (open-trm 0 Y2) _ _ 1 :-
     coq.typecheck X1 Ty ok,
-    coq.typecheck Y2 Ty ok,
-    coq.unify-leq X1 Y1 ok.
+    coq.elaborate-skeleton Y1 Ty Y1' ok,
+    coq.elaborate-skeleton Y2 Ty Y2' ok,
+    coq.unify-leq X1 Y1' ok.
 
   step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
-    X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
-    coq.typecheck Idx A ok,
+    X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
+    coq.typecheck Idx B ok,
     coq.elaborate-skeleton A {{eqType}} _ ok,
+    coq.elaborate-skeleton L {{seq lp:A}} _ ok,
     @pi-decl N A x\ (
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       coq.string->name "H" H0,
@@ -211,9 +216,10 @@ Elpi Db relations.db lp:{{
     transform_proof J X1 {{eq_big_seq lp:{{fun N A F2}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ Prf x h)}}}} P'.
 
   step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
-    X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
-    coq.typecheck Idx A ok,
+    X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
+    coq.typecheck Idx B ok,
     coq.elaborate-skeleton A {{eqType}} _ ok,
+    coq.elaborate-skeleton L {{seq lp:A}} _ ok,
     @pi-decl N A x\ (
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       coq.string->name "H" H0,
@@ -230,8 +236,8 @@ Elpi Db relations.db lp:{{
     transform_proof J X1 {{eq_big_all lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ PP x h)}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ (fun H' (P1 x) h'\ PF x h h'))}}}} P'.
 
   step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
-    X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
-    coq.typecheck Idx A ok,
+    X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
+    coq.typecheck Idx B ok,
     @pi-decl N A x\ (
         instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
         step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) _ (Prf x) IF
@@ -240,8 +246,8 @@ Elpi Db relations.db lp:{{
     transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P'.
 
   step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
-    X1 = {{ @bigop.body lp:A _ _ _ lp:{{ fun N _ _}} }},
-    coq.typecheck Idx A ok,
+    X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
+    coq.typecheck Idx B ok,
     @pi-decl N A x\ (
       coq.string->name "H" H0,
       fresh-name H0 (P x) H,
@@ -254,8 +260,7 @@ Elpi Db relations.db lp:{{
     J is IF + IP,
     transform_proof J X1 {{eq_big lp:{{fun N A P2}} lp:{{fun N A F2}} lp:{{fun N A PP}} lp:{{fun N A x\ (fun H (P x) h\ PF x h)}}}} P'.
 
-
-  step_by_context_aux (app [global Map,A,C,fun N A F1,L1] as X1) (app [global Map,A,C,fun N A F2,L2]) Y1 Y2 T P' J :-
+  step_by_context_aux (app [global Map,_,_,fun N A F1,L1] as X1) (app [global Map,_,_,fun N A F2,L2]) Y1 Y2 T P' J :-
     coq.locate "map" Map,
     step_by_context_aux L1 L2 Y1 Y2 T PL IL,
     @pi-decl N A x\ (
@@ -269,7 +274,7 @@ Elpi Db relations.db lp:{{
     J is IL + IF,
     transform_proof J X1 {{map_equal lp:PL lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P'.
   
-  step_by_context_aux (app [global Fold,A,B,(fun Nx A x\ fun Ny B y\ F1 x y),L1,I1] as X1) (app [global Fold,A,B,(fun Nx A x\ fun Ny B y\ F2 x y),L2,I2]) Y1 Y2 T P' J :-
+  step_by_context_aux (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F1 x y),L1,I1] as X1) (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F2 x y),L2,I2]) Y1 Y2 T P' J :-
     coq.locate "fold_left" Fold,
     step_by_context_aux L1 L2 Y1 Y2 T PL IL,
     step_by_context_aux I1 I2 Y1 Y2 T PI II,
@@ -292,8 +297,14 @@ Elpi Db relations.db lp:{{
     std.rev L2 L2',
     transform_proof I X1 P P'.
 
-  step_by_context_aux (app [fun N T F1,X1|L1]) (app [fun N T F2,X2|L2]) Y1 Y2 H P I:-
-    step_by_context_aux (app [F1 X1|L1]) (app [F2 X2|L2]) Y1 Y2 H P I.
+  step_by_context_aux (app [fun N A F1,X1|L1] as L) (app [fun N A F2,X2|L2]) Y1 Y2 H P' J :-
+    step_by_context_aux X1 X2 Y1 Y2 H PX IX,
+    @pi-decl N A x\ (
+      instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
+      step_by_context_aux (app [F1 x|L1]) (app [F2 x|L2]) (Y1' x) (Y2' x) _ (PF x) IF
+    ),
+    J is IF + IX,
+    transform_proof J L {{f_equal_extensionality lp:{{fun N A PF}} lp:PX}} P'.
 
   step_by_context_aux X X _ _ _ {{ refl_equal lp:X }} 0 :- name X.
   step_by_context_aux (global _ as C) C _ _ _ {{ @refl_equal Type lp:C }} 0 :- coq.typecheck-ty C _ ok.
@@ -311,12 +322,21 @@ Elpi Db relations.db lp:{{
 
   pred instantiate-replacement i:name, i:term, i:term, i:argument, i:argument, o:argument, o:argument.
   instantiate-replacement N Ty C L R L1 R1 :- std.do! [
-    instantiate N Ty C L L1,
-    instantiate N Ty C R R1,
+    instantiate N Ty C L (open-trm FV1 T1'),
+    instantiate N Ty C R (open-trm FV2 T2'),
+    if (0 is FV1 + FV2) (
+        coq.elaborate-skeleton T1' Ty' T1 ok,
+        coq.elaborate-skeleton T2' Ty' T2 ok,
+        L1 = open-trm FV1 T1,
+        R1 = open-trm FV2 T2
+      ) (
+        L1 = open-trm FV1 T1',
+        R1 = open-trm FV2 T2'
+      )
   ].
 
   func transform_proof int,term,term -> term.
-  transform_proof 0 X _ {{Corelib.Init.Logic.eq_refl lp:X}} :-!.
+  transform_proof 0 X _ {{Logic.eq_refl lp:X}} :-!.
   transform_proof _ _ T T.
 
   pred instantiate i:name, i:term, i:term, i:argument, o:argument.
@@ -330,7 +350,7 @@ Elpi Db relations.db lp:{{
   remove-binder-for N _ C (fun N1 _ F) Res :- {coq.name->id N} = {coq.name->id N1},
     Res = (F C).
   remove-binder-for N T C (fun N1 T1 F) (fun N1 T1 F1) :-
-    @pi-decl N1 T1 x \ remove-binder-for N T C (F x) (F1 x). 
+    @pi-decl N1 T1 x \ remove-binder-for N T C (F x) (F1 x).
 
   pred preserve_bound_variables i:term o:term.
 
@@ -414,7 +434,7 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   solve (goal _ _ E _ [trm F] as G) GL :-
     step E F T, !,
-    if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
+    if (refine T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
 }}.
 
 Elpi Tactic context.
@@ -423,6 +443,7 @@ Elpi Accumulate lp:{{
   solve (goal _ _ E0 _ [(open-trm _ _ as Y1),(open-trm _ _ as Y2)] as G) GL :-
     preserve_bound_variables E0 E,
     step_by_context E Y1 Y2 T,
+    coq.say T,
     if (refine T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
   solve _ _ :-
     coq.ltac.fail _ "Unable to fullfill the rewrite".
@@ -437,9 +458,19 @@ Tactic Notation "calc" ":" uconstr(te) :=
   let H := fresh "H" in
   assert(H:te).
 Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
-  elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|cbv beta..].
+  elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..].
 
-Lemma map_test:
+
+
+Goal
+  forall a b, (fun c => c * a * b) 3 = (fun c => b * a) 3.
+Proof.
+  intros a b.
+  Fail context (c*a*b) = (b*a).
+  
+Abort.
+
+Goal
   forall l,
     map (fun i => map (fun j => i + j + 0) (0::nil)) l = map (fun i => i::nil) l.
 Proof.
@@ -448,7 +479,7 @@ Proof.
   apply Nat.add_0_r.
 Abort.
 
-Lemma fold_test:
+Goal
   forall l,
     fold_left (fun acc i => acc*i + 2) l 0 = fold_left (fun acc i => acc*i + 0 + 2) l 0.
 Proof.
@@ -458,16 +489,20 @@ Proof.
   apply Nat.add_0_r.
 Qed.
 
-Lemma sum_test1:
-  \sum_(0 <= i < 6) (\prod_(7<= j < 9) (i + j)) = \sum_(0 <= i < 6) (\prod_(7<= j < 9) (j + i)).
+Goal ((fun i : nat => i == 3) 9) || ((fun i : bool => i || true) false) = true.
 Proof.
-  context (i + j) = (j + i).
-  apply Nat.add_comm.
-  Show Proof.
-Qed.
+  Fail context (i || true) = true.
+Abort.
 
-Lemma sum_test2:
-  \sum_(0 <= i < 6 | (i + 2) == 6) (i+i) = 3^2.
+Goal
+  \sum_(i < 5) (\prod_(0<= j < 7) (i + j)) = \sum_( i < 5) (\prod_(0<= j < 7) (j + i)).
+Proof.
+  context (i+ j) = (j + i).
+  apply Nat.add_comm.
+Abort.
+
+Goal
+  \sum_(0 <= i < 6 | (i + 2) == 6) i = 3^2.
 Proof.
   context i = (i + 0).
   apply Logic.eq_sym.
@@ -475,6 +510,55 @@ Proof.
   apply Logic.eq_sym.
   apply Nat.add_0_r.
 Abort.
+
+Lemma neg_offset_ord_proof n (i : 'I_n) (p : nat) : i - p < n.
+Proof.
+(*D*)have : i < n.
+(*D*)  apply: ltn_ord.
+(*D*)apply: leq_ltn_trans.
+(*D*)by apply: leq_subr.
+(*A*)Qed.
+
+Definition neg_offset_ord n (i : 'I_n) p := Ordinal (neg_offset_ord_proof i p).
+
+Lemma gauss_ex_p2 : forall n, (\sum_(i < n.+1) i).*2 = n.+1 * n.
+Proof.
+intro n.
+rewrite -addnn.
+have Hf i : n - i < n.+1.
+  rewrite ltnS.
+  by apply: leq_subr.
+pose f (i : 'I_n.+1) := neg_offset_ord (@ord_max n) i.
+have f_inj : injective f.
+  move=> x y.
+  rewrite /f /=.
+  move=>/val_eqP/eqP /= Efxfy.
+  apply/val_eqP => /=.
+  have -> : \val x = n - (n - x).
+    rewrite subKn.
+      by [].
+    rewrite -ltnS.
+    by [].
+  rewrite Efxfy.
+  rewrite subKn.
+  rewrite eqxx.
+  by [].
+rewrite -ltnS.
+by [].
+step (_ = \sum_(i < n.+1) (n-i) + \sum_(i<n.+1) i).
+rewrite {1}(reindex_inj f_inj) /=.
+reflexivity.
+rewrite -big_split /=.
+context (n - i + i) = n.
+  rewrite subnK.
+    by [].
+  rewrite -ltnS.
+  by [].
+rewrite sum_nat_const.
+rewrite card_ord.
+by[].
+Abort.
+
 
 Import Nat.
 Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
