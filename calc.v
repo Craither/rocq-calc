@@ -162,6 +162,8 @@ Check eq_big_seq.
 Elpi Db relations.db lp:{{
   pred trans o:term, o:term, i:term, o:term.
   pred incl o:term, o:term, o:term.
+  pred extens o:list term, i:term, o:term, o:term.
+
   pred step i:term, i:term, o:term.
 
   %If we have a direct inclusion between the last goal and the last subgoal,
@@ -204,13 +206,13 @@ Elpi Db relations.db lp:{{
 
   pred step_by_context_aux i:term, o:term, i:argument, i:argument, i:term, o:term, o:int.
 
-  step_by_context_aux X1 Y2' (open-trm 0 Y1) (open-trm 0 Y2) _ _ 1 :-
+  step_by_context_aux X1 Y2' (open-trm 0 Y1) (open-trm 0 Y2) H H 1 :-
     coq.typecheck X1 Ty ok,
     coq.elaborate-skeleton Y1 Ty Y1' ok,
     coq.elaborate-skeleton Y2 Ty Y2' ok,
     X1 = Y1'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P'' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
     @pi-decl N A x\ (
@@ -223,9 +225,9 @@ Elpi Db relations.db lp:{{
     ),
     J is IF,
     transform_proof J X1 {{eq_big_seq lp:{{fun N A F2}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ Prf x h)}}}} P',
-    coq.elaborate-skeleton P' _ _ ok.
+    coq.elaborate-skeleton P' _ P'' ok.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P'' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
     @pi-decl N A x\ (
@@ -242,9 +244,9 @@ Elpi Db relations.db lp:{{
     ),
     J is IP + IF,
     transform_proof J X1 {{eq_big_all lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ PP x h)}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ (fun H' (P1 x) h'\ PF x h h'))}}}} P',
-    coq.elaborate-skeleton P' _ _ ok.
+    coq.elaborate-skeleton P' _ P'' ok.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P'' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
     @pi-decl N A x\ (
@@ -252,9 +254,10 @@ Elpi Db relations.db lp:{{
         step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) _ (Prf x) IF
     ),
     J is IF,
-    transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P'.
+    transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P',
+    coq.elaborate-skeleton P' _ P'' ok.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P'' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
     @pi-decl N A x\ (
@@ -267,9 +270,10 @@ Elpi Db relations.db lp:{{
       )
     ),
     J is IF + IP,
-    transform_proof J X1 {{eq_big lp:{{fun N A P2}} lp:{{fun N A F2}} lp:{{fun N A PP}} lp:{{fun N A x\ (fun H (P x) h\ PF x h)}}}} P'.
+    transform_proof J X1 {{eq_big lp:{{fun N A P2}} lp:{{fun N A F2}} lp:{{fun N A PP}} lp:{{fun N A x\ (fun H (P x) h\ PF x h)}}}} P',
+    coq.elaborate-skeleton P' _ P'' ok.
 
-  step_by_context_aux (app [global Map,_,_,fun N A F1,L1] as X1) (app [global Map,_,_,fun N A F2,L2]) Y1 Y2 T P' J :-
+  step_by_context_aux (app [global Map,_,_,fun N A F1,L1] as X1) (app [global Map,_,_,fun N A F2,L2]) Y1 Y2 T P'' J :-
     coq.locate "map" Map,
     step_by_context_aux L1 L2 Y1 Y2 T PL IL,
     @pi-decl N A x\ (
@@ -281,9 +285,10 @@ Elpi Db relations.db lp:{{
       )
     ),
     J is IL + IF,
-    transform_proof J X1 {{map_equal lp:PL lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P'.
+    transform_proof J X1 {{map_equal lp:PL lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P',
+    coq.elaborate-skeleton P' _ P'' ok.
   
-  step_by_context_aux (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F1 x y),L1,I1] as X1) (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F2 x y),L2,I2]) Y1 Y2 T P' J :-
+  step_by_context_aux (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F1 x y),L1,I1] as X1) (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F2 x y),L2,I2]) Y1 Y2 T P'' J :-
     coq.locate "fold_left" Fold,
     step_by_context_aux L1 L2 Y1 Y2 T PL IL,
     step_by_context_aux I1 I2 Y1 Y2 T PI II,
@@ -299,7 +304,8 @@ Elpi Db relations.db lp:{{
       ) 
     ),
     J is IL + II + IF,
-    transform_proof J X1 {{fold_equal lp:PL lp:PI lp:{{fun Nx A x\ (fun Ny B y\ (fun H {{In lp:y lp:L1}} h\ P x y h))}}}} P'.
+    transform_proof J X1 {{fold_equal lp:PL lp:PI lp:{{fun Nx A x\ (fun Ny B y\ (fun H {{In lp:y lp:L1}} h\ P x y h))}}}} P',
+    coq.elaborate-skeleton P' _ P'' ok.
 
   step_by_context_aux (app [fun N A F1,X1|L1] as L) (app [fun N A F2,X2|L2]) Y1 Y2 H P' J :-
     step_by_context_aux X1 X2 Y1 Y2 H PX IX,
@@ -394,19 +400,20 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   
   func compile term, term -> prop.
-  compile {{_ -> lp:GL -> lp:GR -> lp:G}} P (pi h\ C h) :-!,
-    pi h\ compile {{lp:GL -> lp:GR -> lp:G}} {coq.mk-app P [h]} (C h).
 
-  compile {{lp:GL -> lp:GR -> lp:G}} P (trans GL GR G P):- !,
+  compile (prod N T x\ prod _ (GL x) y\ prod _ (GR x y) z\ (G x y z)) P (pi x\ C x) :- !,
+    @pi-decl N T x\ (
+      coq.mk-app P [x] (P' x),
+      compile (prod _ (GL x) y\ prod _ (GR x y) z\ (G x y z)) (P' x) (C x)
+    ).
+
+  compile {{lp:GL -> lp:GR -> lp:G}} P (trans GL GR G P):-!,
     GL = app L1,
     std.rev L1 [Y,X|_],
     GR = app L2,
     std.rev L2 [Z,Y|_],
     G = app L3,
     std.rev L3 [Z,X|_].
-
-  compile {{forall x, lp:(F x) }} P (pi x\ C x) :-!,
-    pi x\ compile (F x) {coq.mk-app P [x]} (C x).
 
   compile T P C :-
     whd1 T T',
@@ -423,17 +430,17 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   func compile term, term -> prop.
 
-  compile {{_ -> lp:GL->lp:G}} P (pi h\ C h) :-!,
-    pi h\ compile {{lp:GL->lp:G}} {coq.mk-app P [h]} (C h).
+  compile (prod _ _ x\ prod _ (GL x) y\ (G x y)) P (pi x\ C x) :-!,
+    pi x\ (
+      coq.mk-app P [x] (P' x),
+      compile (prod _ (GL x) y\ (G x y)) (P' x) (C x)
+    ).
 
   compile {{lp:GL -> lp:G}} P (incl GL G P):- !,
     GL = app L1,
     std.rev L1 [Y,X|_],
     G = app L2,
     std.rev L2 [Y,X|_].
-
-  compile {{forall x, lp:(F x)}} P (pi x\ C x) :-!,
-    pi x\ compile (F x) {coq.mk-app P [x]} (C x).
 
   compile T P C :-
     whd1 T T',
@@ -445,6 +452,16 @@ Elpi Accumulate lp:{{
     coq.elpi.accumulate _ "relations.db" (clause _ _ C).
 }}.
 
+Elpi Command add_extensionaliity.
+Elpi Accumulate Db relations.db.
+Elpi Accumulate lp:{{
+  func compile term, term -> prop.
+
+  compile {{_ -> lp:G}} P (pi h\ C h) :-!,
+    pi h\ compile {{lp:G}} {coq.mk-app P [h]} (C h).
+
+}}.
+
 Lemma eq_trans2:
   forall [A:Type] [x y z:A],
     x = x -> x = y -> y = z -> x = z.
@@ -452,6 +469,8 @@ Proof.
   intros A x y z H1.
   exact (@eq_trans A x y z).
 Qed.
+
+Check eq_trans.
 
 Elpi add_transitivity (eq_trans).
 Elpi add_transitivity (Nat.le_trans).
@@ -461,7 +480,6 @@ Elpi add_transitivity (Nat.lt_le_trans).
 Elpi add_inclusion (Nat.eq_le_incl).
 Elpi add_inclusion (Nat.lt_le_incl).
 
-(*Create one subgoal*)
 Elpi Tactic step.
 Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
@@ -500,6 +518,14 @@ Proof.
   intros a b.
   context (c*a) = (a*c).
   apply Nat.mul_comm.
+  done.
+Qed.
+
+Goal forall a b, (a+b) + (a+b) = (b+a) + (b+a).
+Proof.
+  intros a b.
+  context (a+b) = (b+a).
+  1,2:apply Nat.add_comm.
   done.
 Qed.
 
