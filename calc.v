@@ -28,8 +28,19 @@ Qed.
 Elpi Command say.
 Elpi Accumulate lp:{{
   main [trm F] :-
-    coq.say F.
+    coq.say "HEY",
+    coq.typecheck F {{lp:A -> lp:B}} ok,
+    coq.say A,
+    coq.say B.
 }}.
+
+Lemma testo:
+  True->True->True.
+Proof.
+  trivial.
+Qed.
+
+Elpi say (testo).
 
 Lemma fold_equal:
   forall [A B:Type] [f g:A->B->A] [l1 l2:list B] [i1 i2:A],
@@ -99,7 +110,7 @@ Qed.
 Lemma eq_big_all:
   forall [R:Type] [idx:R] [op: R->R->R] [I:eqType] [r:seq I] [P1:pred I] (P2:pred I) [F1:I->R] (F2:I->R),
   {in r, P1 =1 P2} ->
-  (forall i:I, i \in r -> P1 i -> F1 i = F2 i) ->
+  {in r, forall i:I, P1 i -> F1 i = F2 i} ->
   \big[op/idx]_(i <- r | P1 i)  F1 i = \big[op/idx]_(i <- r | P2 i)  F2 i.
 Proof.
   intros R idx op I r P1 P2 F1 F2 H1 H2.
@@ -155,11 +166,11 @@ Elpi Db relations.db lp:{{
 
   %If we have a direct inclusion between the last goal and the last subgoal,
   %we don't create a new goal
-  step E F _ :-
-    coq.unify-leq E F ok.
-  
-  step E F {{lp:IF _}} :-
-    incl F E IF.
+  %step E F _ :-
+  %  coq.unify-leq E F ok.
+  %
+  %step E F {{lp:IF _}} :-
+  %  incl F E IF.
 
   %Directly apply one transitivity rule
   step E F {{lp:TF _ _}} :-
@@ -175,12 +186,12 @@ Elpi Db relations.db lp:{{
   pred step_by_context i:term, i:argument, i:argument, o:term.
   step_by_context E Y1 Y2 P' :-
     E = app L,
-    std.rev L [X2,X1|_],
+    std.rev L [_,X1|_],
     step_by_context_aux X1 V Y1 Y2 _ P J,
     if (J = 0)(
       coq.ltac.fail _ "Pattern not found"
     ) (
-      if (X2 = V) (P' = P) (
+      %if (X2 = V) (P' = P) (
         if (trans {{lp:X1 = lp:V}} _ E TF) (
           (P' = {{lp:TF lp:P _}})
         ) (
@@ -188,7 +199,7 @@ Elpi Db relations.db lp:{{
           trans I _ E TF,
           P' = {{lp:TF (lp:IF lp:P) _}}
         )
-      ) 
+      %) 
     ).
 
   pred step_by_context_aux i:term, o:term, i:argument, i:argument, i:term, o:term, o:int.
@@ -197,13 +208,11 @@ Elpi Db relations.db lp:{{
     coq.typecheck X1 Ty ok,
     coq.elaborate-skeleton Y1 Ty Y1' ok,
     coq.elaborate-skeleton Y2 Ty Y2' ok,
-    coq.unify-leq X1 Y1' ok.
+    X1 = Y1'.
 
   step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
-    coq.elaborate-skeleton A {{eqType}} _ ok,
-    coq.elaborate-skeleton L {{seq lp:A}} _ ok,
     @pi-decl N A x\ (
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       coq.string->name "H" H0,
@@ -213,13 +222,12 @@ Elpi Db relations.db lp:{{
       )
     ),
     J is IF,
-    transform_proof J X1 {{eq_big_seq lp:{{fun N A F2}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ Prf x h)}}}} P'.
+    transform_proof J X1 {{eq_big_seq lp:{{fun N A F2}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ Prf x h)}}}} P',
+    coq.elaborate-skeleton P' _ _ ok.
 
   step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
-    coq.elaborate-skeleton A {{eqType}} _ ok,
-    coq.elaborate-skeleton L {{seq lp:A}} _ ok,
     @pi-decl N A x\ (
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       coq.string->name "H" H0,
@@ -233,7 +241,8 @@ Elpi Db relations.db lp:{{
       )
     ),
     J is IP + IF,
-    transform_proof J X1 {{eq_big_all lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ PP x h)}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ (fun H' (P1 x) h'\ PF x h h'))}}}} P'.
+    transform_proof J X1 {{eq_big_all lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ PP x h)}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ (fun H' (P1 x) h'\ PF x h h'))}}}} P',
+    coq.elaborate-skeleton P' _ _ ok.
 
   step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
@@ -292,11 +301,6 @@ Elpi Db relations.db lp:{{
     J is IL + II + IF,
     transform_proof J X1 {{fold_equal lp:PL lp:PI lp:{{fun Nx A x\ (fun Ny B y\ (fun H {{In lp:y lp:L1}} h\ P x y h))}}}} P'.
 
-  step_by_context_aux (app [F1|L1] as X1) (app [F2|L2']) Y1 Y2 H P' I :-
-    app_rewrite F1 {std.rev L1} F2 L2 Y1 Y2 H P I,
-    std.rev L2 L2',
-    transform_proof I X1 P P'.
-
   step_by_context_aux (app [fun N A F1,X1|L1] as L) (app [fun N A F2,X2|L2]) Y1 Y2 H P' J :-
     step_by_context_aux X1 X2 Y1 Y2 H PX IX,
     @pi-decl N A x\ (
@@ -305,6 +309,11 @@ Elpi Db relations.db lp:{{
     ),
     J is IF + IX,
     transform_proof J L {{f_equal_extensionality lp:{{fun N A PF}} lp:PX}} P'.
+
+  step_by_context_aux (app [F1|L1] as X1) (app [F2|L2']) Y1 Y2 H P' I :-
+    app_rewrite F1 {std.rev L1} F2 L2 Y1 Y2 H P I,
+    std.rev L2 L2',
+    transform_proof I X1 P P'.
 
   step_by_context_aux X X _ _ _ {{ refl_equal lp:X }} 0 :- name X.
   step_by_context_aux (global _ as C) C _ _ _ {{ @refl_equal Type lp:C }} 0 :- coq.typecheck-ty C _ ok.
@@ -321,19 +330,18 @@ Elpi Db relations.db lp:{{
     transform_proof J (app [F1,X1|L1]) {{f_equal_equal lp:PF lp:PX}} P'.
 
   pred instantiate-replacement i:name, i:term, i:term, i:argument, i:argument, o:argument, o:argument.
-  instantiate-replacement N Ty C L R L1 R1 :- std.do! [
+  instantiate-replacement N Ty C L R L1 R1 :-
     instantiate N Ty C L (open-trm FV1 T1'),
     instantiate N Ty C R (open-trm FV2 T2'),
     if (0 is FV1 + FV2) (
-        coq.elaborate-skeleton T1' Ty' T1 ok,
-        coq.elaborate-skeleton T2' Ty' T2 ok,
-        L1 = open-trm FV1 T1,
-        R1 = open-trm FV2 T2
-      ) (
-        L1 = open-trm FV1 T1',
-        R1 = open-trm FV2 T2'
-      )
-  ].
+      coq.elaborate-skeleton T1' Ty' T1 ok,
+      coq.elaborate-skeleton T2' Ty' T2 ok,
+      L1 = open-trm FV1 T1,
+      R1 = open-trm FV2 T2
+    ) (
+      L1 = open-trm FV1 T1',
+      R1 = open-trm FV2 T2'
+    ).
 
   func transform_proof int,term,term -> term.
   transform_proof 0 X _ {{Logic.eq_refl lp:X}} :-!.
@@ -374,7 +382,7 @@ Elpi Db relations.db lp:{{
           (@pi-decl N1 T1 x\
             copy (F x) (F1 x)))) => copy I O).
 
-  pred fresh-name i:name, i:term, o:name.
+  func fresh-name name,term -> name.
 
   fresh-name N T M :-
     coq.ltac.fresh-id {coq.name->id N} T Mi,
@@ -384,8 +392,18 @@ Elpi Db relations.db lp:{{
 Elpi Command add_transitivity.
 Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
+  
   func compile term, term -> prop.
-  compile (prod _ GL x\ prod _ GR y\ G) P (trans GL GR G P):- !.
+  compile {{_ -> lp:GL -> lp:GR -> lp:G}} P (pi h\ C h) :-!,
+    pi h\ compile {{lp:GL -> lp:GR -> lp:G}} {coq.mk-app P [h]} (C h).
+
+  compile {{lp:GL -> lp:GR -> lp:G}} P (trans GL GR G P):- !,
+    GL = app L1,
+    std.rev L1 [Y,X|_],
+    GR = app L2,
+    std.rev L2 [Z,Y|_],
+    G = app L3,
+    std.rev L3 [Z,X|_].
 
   compile {{forall x, lp:(F x) }} P (pi x\ C x) :-!,
     pi x\ compile (F x) {coq.mk-app P [x]} (C x).
@@ -405,7 +423,14 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   func compile term, term -> prop.
 
-  compile (prod _ GL x\ GR) P (incl GL GR P):- !.
+  compile {{_ -> lp:GL->lp:G}} P (pi h\ C h) :-!,
+    pi h\ compile {{lp:GL->lp:G}} {coq.mk-app P [h]} (C h).
+
+  compile {{lp:GL -> lp:G}} P (incl GL G P):- !,
+    GL = app L1,
+    std.rev L1 [Y,X|_],
+    G = app L2,
+    std.rev L2 [Y,X|_].
 
   compile {{forall x, lp:(F x)}} P (pi x\ C x) :-!,
     pi x\ compile (F x) {coq.mk-app P [x]} (C x).
@@ -419,6 +444,14 @@ Elpi Accumulate lp:{{
     compile Ty IF C,
     coq.elpi.accumulate _ "relations.db" (clause _ _ C).
 }}.
+
+Lemma eq_trans2:
+  forall [A:Type] [x y z:A],
+    x = x -> x = y -> y = z -> x = z.
+Proof.
+  intros A x y z H1.
+  exact (@eq_trans A x y z).
+Qed.
 
 Elpi add_transitivity (eq_trans).
 Elpi add_transitivity (Nat.le_trans).
@@ -435,6 +468,8 @@ Elpi Accumulate lp:{{
   solve (goal _ _ E _ [trm F] as G) GL :-
     step E F T, !,
     if (refine T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
+  solve _ _ :-
+    coq.ltac.fail _ "Unable to fullfill the rewrite".
 }}.
 
 Elpi Tactic context.
@@ -443,7 +478,6 @@ Elpi Accumulate lp:{{
   solve (goal _ _ E0 _ [(open-trm _ _ as Y1),(open-trm _ _ as Y2)] as G) GL :-
     preserve_bound_variables E0 E,
     step_by_context E Y1 Y2 T,
-    coq.say T,
     if (refine T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
   solve _ _ :-
     coq.ltac.fail _ "Unable to fullfill the rewrite".
@@ -460,24 +494,28 @@ Tactic Notation "calc" ":" uconstr(te) :=
 Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
   elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..].
 
-
-
 Goal
-  forall a b, (fun c => c * a * b) 3 = (fun c => b * a) 3.
+  forall a b, (fun c => c * a * b) 3 = (fun c => a * c * b) 3.
 Proof.
   intros a b.
-  Fail context (c*a*b) = (b*a).
-  
-Abort.
+  context (c*a) = (a*c).
+  apply Nat.mul_comm.
+  done.
+Qed.
 
 Goal
   forall l,
-    map (fun i => map (fun j => i + j + 0) (0::nil)) l = map (fun i => i::nil) l.
+    [seq [seq i + j + 0  | j <- [:: 0]]  | i <- l] =
+    [seq [:: i]  | i <- l].
 Proof.
   intro l.
   context (i + j + 0) = (i + j).
-  apply Nat.add_0_r.
-Abort.
+    apply Nat.add_0_r.
+  simpl.
+  context (i + 0) = i.
+    apply Nat.add_0_r.
+  done.
+Qed.
 
 Goal
   forall l,
@@ -485,30 +523,27 @@ Goal
 Proof.
   intro l.
   context (acc*i) = (acc*i + 0).
-  apply Logic.eq_sym.
-  apply Nat.add_0_r.
+    apply Logic.eq_sym.
+    apply Nat.add_0_r.
+  done.
 Qed.
 
-Goal ((fun i : nat => i == 3) 9) || ((fun i : bool => i || true) false) = true.
-Proof.
-  Fail context (i || true) = true.
-Abort.
-
 Goal
-  \sum_(i < 5) (\prod_(0<= j < 7) (i + j)) = \sum_( i < 5) (\prod_(0<= j < 7) (j + i)).
+  \sum_(i < 5) (\prod_(0<= j < 7) (i + j)) = 
+  \sum_( i < 5) (\prod_(0<= j < 7) (j + i)).
 Proof.
-  context (i+ j) = (j + i).
-  apply Nat.add_comm.
-Abort.
+  pose i := 1.
+  context (i0 + j) = (j + i0).
+    apply Nat.add_comm.
+  done.
+Qed.
 
 Goal
   \sum_(0 <= i < 6 | (i + 2) == 6) i = 3^2.
 Proof.
   context i = (i + 0).
-  apply Logic.eq_sym.
-  apply Nat.add_0_r.
-  apply Logic.eq_sym.
-  apply Nat.add_0_r.
+  1,2:apply Logic.eq_sym.
+  1,2:apply Nat.add_0_r.
 Abort.
 
 Lemma neg_offset_ord_proof n (i : 'I_n) (p : nat) : i - p < n.
@@ -547,7 +582,7 @@ rewrite -ltnS.
 by [].
 step (_ = \sum_(i < n.+1) (n-i) + \sum_(i<n.+1) i).
 rewrite {1}(reindex_inj f_inj) /=.
-reflexivity.
+  by [].
 rewrite -big_split /=.
 context (n - i + i) = n.
   rewrite subnK.
@@ -557,13 +592,13 @@ context (n - i + i) = n.
 rewrite sum_nat_const.
 rewrite card_ord.
 by[].
-Abort.
+Qed.
 
 
 Import Nat.
 Lemma test3 a b c d : (a + b) * (c + d) = (a * c + a * d + b * c + b * d).
 Proof.
-step (_ = (a+b)*c + (a+b)*d).
+step ((a+b) * _ = (a+b)*c + (a+b)*d).
   now apply mul_add_distr_l.
 context ((a+b)*c) = (a*c + b*c).
   now apply mul_add_distr_r.
@@ -578,6 +613,7 @@ context (b*c + a*d) = (a*d + b*c).
   now apply add_comm.
 context (a*c + (a*d + b*c) ) = ( a*c + a*d + b*c).
   now apply add_assoc.
+done.
 Qed.
 
 Lemma rem_id a b : (a+b)^2 = a^2 + b^2 + 2*(a*b).
@@ -615,6 +651,7 @@ context (2*(a*b) + b^2 ) = ( b^2 + 2*(a*b)).
   now apply add_comm.
 step (_ = a^2 + b^2 + 2*(a*b)).
   now apply add_assoc.
+done.
 Qed.
 
 Open Scope nat_scope.
@@ -622,6 +659,7 @@ Open Scope nat_scope.
 Lemma test4 a b c : ((2 * (a * b + b * c + c * a)) <= ((a + b + c) ^2))%coq_nat.
 Proof.
 step (_ = 2*(a*b) + 2*(b*c) + 2*(c*a)).
+Show Proof.
   step (_ = 2*(a*b + b*c) + 2*(c*a)).
     now apply mul_add_distr_l.
   apply f_equal2 with (f:=plus).
@@ -639,6 +677,7 @@ step  (_ <= a^2 + b^2 + c^2 + 2*(a*b) + 2*(b*c) + 2*(c*a))%coq_nat.
     now apply add_assoc.
   step (_ = a^2 + b^2 + c^2 + 2*(a*b) + 2*(b*c) + 2*(c*a)).
     now apply add_assoc.
+  done.
 step (_ = (a + b + c)^2).
   apply eq_sym.
   step ((a+b+c)^2 = (a+b)^2 + c^2 + 2*((a+b)*c)).
@@ -667,4 +706,6 @@ step (_ = (a + b + c)^2).
     now apply add_assoc.
   context (a*c ) = ( c*a).
     now apply mul_comm.
+  done.
+done.
 Qed.
