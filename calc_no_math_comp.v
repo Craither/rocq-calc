@@ -314,7 +314,7 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   solve (goal _ _ E _ [trm F] as G) GL :-
     step E F T, !,
-    if (refine T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
+    if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
   solve _ _ :-
     coq.ltac.fail _ "Unable to fullfill the rewrite".
 }}.
@@ -325,18 +325,18 @@ Elpi Accumulate lp:{{
   solve (goal _ _ E0 _ [(open-trm _ _ as Y1),(open-trm _ _ as Y2)] as G) GL :-
     preserve_bound_variables E0 E,
     step_by_context E Y1 Y2 T,
-    if (refine T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
+    if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
   solve _ _ :-
     coq.ltac.fail _ "Unable to fullfill the rewrite".
 }}.
 
 Tactic Notation "step" uconstr(te) := elpi step ltac_term:(te).
 Tactic Notation "step" uconstr(te) "by" tactic(ta) :=
-  elpi step ltac_term:(te); [solve[ta]..|idtac].
+  elpi step ltac_term:(te); [solve[ta]|idtac..].
 Tactic Notation "calc" ":" uconstr(te) "as" ident(s) :=
   assert(s:te).
 Tactic Notation "calc" ":" uconstr(te) :=
   let H := fresh "H" in
   assert(H:te).
 Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
-  elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..].
+  elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|idtac..].

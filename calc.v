@@ -460,11 +460,11 @@ Elpi Accumulate lp:{{
 
 Tactic Notation "step" uconstr(te) := elpi step ltac_term:(te).
 Tactic Notation "step" uconstr(te) "by" tactic(ta) :=
-  elpi step ltac_term:(te); [solve[ta]..|idtac].
+  elpi step ltac_term:(te); [solve[ta]|idtac..].
 Tactic Notation "calc" ":" uconstr(te) "as" ident(s) :=
   assert(s:te).
 Tactic Notation "calc" ":" uconstr(te) :=
   let H := fresh "H" in
   assert(H:te).
 Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
-  elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..].
+  elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|idtac..].
