@@ -70,8 +70,9 @@ Proof.
   apply big_seq_cond.
 Qed.
 
+Check eq_big_seq.
+Set Printing All.
 Elpi Accumulate relations.db lp:{{
-
   step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P'' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,

@@ -1,6 +1,7 @@
 From Stdlib Require Import Arith.
 From Stdlib Require Import List.
 From elpi Require Import elpi.
+From mathcomp Require Import ssrmatching.
 
 Lemma f_equal_equal:
   forall [A B:Type] [f1 f2: A->B] [x1 x2:A], f1 = f2 -> x1 = x2 -> f1 x1 = f2 x2.
@@ -95,7 +96,7 @@ Elpi Db relations.db lp:{{
   step _ _ _ :-
     coq.ltac.fail _ "No applicable rule".
 
-  pred step_by_context i:term, i:argument, i:argument, o:term.
+  pred step_by_context i:term, i:list argument, i:argument, o:term.
   step_by_context E Y1 Y2 P' :-
     E = app L,
     std.rev L [_,X1|_],
@@ -114,15 +115,21 @@ Elpi Db relations.db lp:{{
       %) 
     ).
 
-  pred step_by_context_aux i:term, o:term, i:argument, i:argument, i:term, o:term, o:int.
+  pred step_by_context_aux i:term, o:term, i:list argument, i:argument, i:term, o:term, o:int.
 
-  step_by_context_aux X1 Y2' (open-trm 0 Y1) (open-trm 0 Y2) H H 1 :-
+  step_by_context_aux X1 Y2' [open-trm 0 Y1] (open-trm 0 Y2) H H 1 :-
     coq.typecheck X1 Ty ok,
     coq.elaborate-skeleton Y1 Ty Y1' ok,
     coq.elaborate-skeleton Y2 Ty Y2' ok,
     X1 = Y1'.
+  
+  step_by_context_aux X1 X2 [open-trm 0 Y1|L] Y2 H P I :-
+    coq.typecheck X1 Ty ok,
+    coq.elaborate-skeleton Y1 Ty Y1' ok,
+    X1 = Y1',
+    step_by_context_aux X1 X2 L Y2 H P I. 
 
-  step_by_context_aux (app [global Map,_,_,fun N A F1,L1] as X1) (app [global Map,_,_,fun N A F2,L2]) Y1 Y2 T P'' J :-
+  step_by_context_aux (app [global Map,_,_,fun N A F1,L1] as X1) (app [global Map,_,_,fun N A F2,L2]) Y1 Y2 T P' J :-
     coq.locate "map" Map,
     step_by_context_aux L1 L2 Y1 Y2 T PL IL,
     @pi-decl N A x\ (
@@ -134,10 +141,9 @@ Elpi Db relations.db lp:{{
       )
     ),
     J is IL + IF,
-    transform_proof J X1 {{map_equal lp:PL lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P',
-    coq.elaborate-skeleton P' _ P'' ok.
+    transform_proof J X1 {{map_equal lp:PL lp:{{fun N A x\ (fun H {{In lp:x lp:L}} h\ P x h)}}}} P'.
   
-  step_by_context_aux (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F1 x y),L1,I1] as X1) (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F2 x y),L2,I2]) Y1 Y2 T P'' J :-
+  step_by_context_aux (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F1 x y),L1,I1] as X1) (app [global Fold,_,_,(fun Nx A x\ fun Ny B y\ F2 x y),L2,I2]) Y1 Y2 T P' J :-
     coq.locate "fold_left" Fold,
     step_by_context_aux L1 L2 Y1 Y2 T PL IL,
     step_by_context_aux I1 I2 Y1 Y2 T PI II,
@@ -153,8 +159,7 @@ Elpi Db relations.db lp:{{
       ) 
     ),
     J is IL + II + IF,
-    transform_proof J X1 {{fold_equal lp:PL lp:PI lp:{{fun Nx A x\ (fun Ny B y\ (fun H {{In lp:y lp:L1}} h\ P x y h))}}}} P',
-    coq.elaborate-skeleton P' _ P'' ok.
+    transform_proof J X1 {{fold_equal lp:PL lp:PI lp:{{fun Nx A x\ (fun Ny B y\ (fun H {{In lp:y lp:L1}} h\ P x y h))}}}} P'.
 
   step_by_context_aux (app [fun N A F1,X1|L1] as L) (app [fun N A F2,X2|L2]) Y1 Y2 H P' J :-
     step_by_context_aux X1 X2 Y1 Y2 H PX IX,
@@ -174,7 +179,7 @@ Elpi Db relations.db lp:{{
   step_by_context_aux (global _ as C) C _ _ _ {{ @refl_equal Type lp:C }} 0 :- coq.typecheck-ty C _ ok.
   step_by_context_aux (global _ as C) C _ _ _ {{ refl_equal lp:C }} 0.
 
-  pred app_rewrite i:term, i:list term, o:term, o:list term, i:argument, i:argument, i:term, o:term, o:int.
+  pred app_rewrite i:term, i:list term, o:term, o:list term, i:list argument, i:argument, i:term, o:term, o:int.
   app_rewrite F1 [] F2 [] Y1 Y2 H PF I :-
     step_by_context_aux F1 F2 Y1 Y2 H PF I.
 
@@ -184,19 +189,10 @@ Elpi Db relations.db lp:{{
     J is IX + IF,
     transform_proof J (app [F1,X1|L1]) {{f_equal_equal lp:PF lp:PX}} P'.
 
-  pred instantiate-replacement i:name, i:term, i:term, i:argument, i:argument, o:argument, o:argument.
-  instantiate-replacement N Ty C L R L1 R1 :-
-    instantiate N Ty C L (open-trm FV1 T1'),
-    instantiate N Ty C R (open-trm FV2 T2'),
-    if (0 is FV1 + FV2) (
-      coq.elaborate-skeleton T1' Ty' T1 ok,
-      coq.elaborate-skeleton T2' Ty' T2 ok,
-      L1 = open-trm FV1 T1,
-      R1 = open-trm FV2 T2
-    ) (
-      L1 = open-trm FV1 T1',
-      R1 = open-trm FV2 T2'
-    ).
+  pred instantiate-replacement i:name, i:term, i:term, i:list argument, i:argument, o:list argument, o:argument.
+  instantiate-replacement N Ty C L Y2 L' Y2':-
+    instantiate N Ty C Y2 Y2',
+    std.map L (x\r\ instantiate N Ty C x r) L'.
 
   func transform_proof int,term,term -> term.
   transform_proof 0 X _ {{Logic.eq_refl lp:X}} :-!.
@@ -322,10 +318,13 @@ Elpi Accumulate lp:{{
 Elpi Tactic context.
 Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
-  solve (goal _ _ E0 _ [(open-trm _ _ as Y1),(open-trm _ _ as Y2)] as G) GL :-
+  solve (goal _ _ E0 _ L as G) GL :-
+    std.rev L [Y2|L'],
+    std.rev L' Y1,
     preserve_bound_variables E0 E,
     step_by_context E Y1 Y2 T,
     if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
+
   solve _ _ :-
     coq.ltac.fail _ "Unable to fullfill the rewrite".
 }}.
@@ -338,5 +337,13 @@ Tactic Notation "calc" ":" uconstr(te) "as" ident(s) :=
 Tactic Notation "calc" ":" uconstr(te) :=
   let H := fresh "H" in
   assert(H:te).
-Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2):=
+
+Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2) :=
   elpi context ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|idtac..].
+  Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2) "by" tactic(ta):=
+  elpi context ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]|idtac..].
+
+Tactic Notation (at level 0) "context" "[" uconstr_list_sep(l, ",") "]" uconstr(t1) "=" uconstr(t2):=
+  elpi context ltac_open_term_list:(l) ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta|idtac..].
+Tactic Notation (at level 0) "context" "[" uconstr_list_sep(l, ",") "]" uconstr(t1) "=" uconstr(t2) "by" tactic(ta):=
+  elpi context ltac_open_term_list:(l) ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]|idtac..].
