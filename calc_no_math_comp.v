@@ -310,7 +310,11 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   solve (goal _ _ E _ [trm F] as G) GL :-
     step E F T, !,
-    if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
+    if (refine.typecheck T G GL) (1=1) (
+      if (refine T G GL)
+        (1 = 1)
+        (coq.ltac.fail _ "Refinement failed")
+    ).
   solve _ _ :-
     coq.ltac.fail _ "Unable to fullfill the rewrite".
 }}.
@@ -323,7 +327,11 @@ Elpi Accumulate lp:{{
     std.rev L' Y1,
     preserve_bound_variables E0 E,
     step_by_context E Y1 Y2 T,
-    if (refine.typecheck T G GL) (1=1) (coq.ltac.fail _ "Refinement failed").
+    if (refine.typecheck T G GL) (1=1) (
+      if (refine T G GL)
+        (1 = 1)
+        (coq.ltac.fail _ "Refinement failed")
+    ).
 
   solve _ _ :-
     coq.ltac.fail _ "Unable to fullfill the rewrite".

@@ -70,12 +70,10 @@ Proof.
   apply big_seq_cond.
 Qed.
 
-Check eq_big_seq.
-Set Printing All.
 Elpi Accumulate relations.db lp:{{
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P'' J :-
-    X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
-    coq.typecheck Idx B ok,
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
+    X1 = {{ @bigop.body _ _ _ _ lp:{{ fun N A0 _}} }},
+    coq.elaborate-skeleton A {{eqType}} _ ok,
     @pi-decl N A x\ (
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       coq.string->name "H" H0,
@@ -85,12 +83,11 @@ Elpi Accumulate relations.db lp:{{
       )
     ),
     J is IF,
-    transform_proof J X1 {{eq_big_seq lp:{{fun N A F2}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ Prf x h)}}}} P',
-    coq.elaborate-skeleton P' _ P'' ok.
+    transform_proof J X1 {{eq_big_seq lp:{{fun N A F2}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ Prf x h)}}}} P'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P'' J :-
-    X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
-    coq.typecheck Idx B ok,
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
+    X1 = {{ @bigop.body _ _ _ _ lp:{{ fun N A _}} }},
+    coq.elaborate-skeleton A {{eqType}} _ ok,
     @pi-decl N A x\ (
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       coq.string->name "H" H0,
@@ -104,10 +101,9 @@ Elpi Accumulate relations.db lp:{{
       )
     ),
     J is IP + IF,
-    transform_proof J X1 {{eq_big_all lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ PP x h)}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ (fun H' (P1 x) h'\ PF x h h'))}}}} P',
-    coq.elaborate-skeleton P' _ P'' ok.
+    transform_proof J X1 {{eq_big_all lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ PP x h)}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ (fun H' (P1 x) h'\ PF x h h'))}}}} P'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P'' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
     @pi-decl N A x\ (
@@ -115,10 +111,9 @@ Elpi Accumulate relations.db lp:{{
         step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) _ (Prf x) IF
     ),
     J is IF,
-    transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P',
-    coq.elaborate-skeleton P' _ P'' ok.
+    transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P'' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
     @pi-decl N A x\ (
@@ -131,6 +126,5 @@ Elpi Accumulate relations.db lp:{{
       )
     ),
     J is IF + IP,
-    transform_proof J X1 {{eq_big lp:{{fun N A P2}} lp:{{fun N A F2}} lp:{{fun N A PP}} lp:{{fun N A x\ (fun H (P x) h\ PF x h)}}}} P',
-    coq.elaborate-skeleton P' _ P'' ok.
+    transform_proof J X1 {{eq_big lp:{{fun N A P2}} lp:{{fun N A F2}} lp:{{fun N A PP}} lp:{{fun N A x\ (fun H (P x) h\ PF x h)}}}} P'.
 }}.
