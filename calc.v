@@ -71,31 +71,37 @@ Proof.
 Qed.
 
 Elpi Accumulate relations.db lp:{{
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
-    X1 = {{ @bigop.body _ _ _ _ lp:{{ fun N A0 _}} }},
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1)
+                       {{ @bigop.body lp:B lp:A lp:Idx lp:L lp:{{fun N A x\ {{@BigBody lp:B lp:A lp:x lp:Op true lp:{{F2 x}}}}}}}}
+                       %{{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }}
+                       Y1 Y2 _ P' J :-
+    X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.elaborate-skeleton A {{eqType}} _ ok,
-    @pi-decl N A x\ (
+    ( @pi-decl N A x\
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       coq.string->name "H" H0,
       fresh-name H0 {{lp:x \in lp:L}} H,
-      @pi-decl H {{lp:x \in lp:L}} h\ (
+      ( @pi-decl H {{lp:x \in lp:L}} h\
         step_by_context_aux (F1 x) (F2 x) (Y1' x) (Y2' x) _ (Prf x h) IF
       )
     ),
     J is IF,
     transform_proof J X1 {{eq_big_seq lp:{{fun N A F2}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ Prf x h)}}}} P'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1)
+                       {{ @bigop.body lp:B lp:A lp:Idx lp:L lp:{{fun N A x\ {{@BigBody lp:B lp:A lp:x lp:Op lp:{{P2 x}} lp:{{F2 x}}}}}}}}
+                       %{{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }}
+                       Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body _ _ _ _ lp:{{ fun N A _}} }},
     coq.elaborate-skeleton A {{eqType}} _ ok,
-    @pi-decl N A x\ (
+    ( @pi-decl N A x\
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       coq.string->name "H" H0,
       fresh-name H0 {{lp:x \in lp:L}} H,
-      @pi-decl H {{lp:x \in lp:L}} h\ (
+      ( @pi-decl H {{lp:x \in lp:L}} h\ 
         step_by_context_aux (P1 x) (P2 x) (Y1' x) (Y2' x) _ (PP x h) IP,
         fresh-name H0 (P1 x) H',
-        @pi-decl H' (P1 x) h'\ (
+        ( @pi-decl H' (P1 x) h'\
           step_by_context_aux (F1 x) (F2 x) (Y1' x) (Y2' x) _ (PF x h h') IF
         )
       )
@@ -103,25 +109,31 @@ Elpi Accumulate relations.db lp:{{
     J is IP + IF,
     transform_proof J X1 {{eq_big_all lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ PP x h)}} lp:{{fun N A x\ (fun H {{lp:x \in lp:L}} h\ (fun H' (P1 x) h'\ PF x h h'))}}}} P'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }} Y1 Y2 _ P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F1 i) }} as X1)
+                       {{ @bigop.body lp:B lp:A lp:Idx lp:L lp:{{fun N A x\ {{@BigBody lp:B lp:A lp:x lp:Op true lp:{{F2 x}}}}}}}}
+                       %{{ \big[ lp:Op / lp:Idx ]_( i <- lp:L) lp:(F2 i) }}
+                       Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
-    @pi-decl N A x\ (
+    (@pi-decl N A x\
         instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
         step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) _ (Prf x) IF
     ),
     J is IF,
     transform_proof J X1 {{eq_bigr_no_pred lp:{{fun N A x\ Prf x }}}} P'.
 
-  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1) {{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }} Y1 Y2 _ P' J :-
+  step_by_context_aux ({{ \big[ lp:Op / lp:Idx ]_( i <- lp:L| lp:(P1 i)) lp:(F1 i) }} as X1)
+                       {{ @bigop.body lp:B lp:A lp:Idx lp:L lp:{{fun N A x\ {{@BigBody lp:B lp:A lp:x lp:Op lp:{{P2 x}} lp:{{F2 x}}}}}}}}
+                       %{{ \big[ lp:Op / lp:Idx ]_( i <- lp:L | lp:(P2 i)) lp:(F2 i) }}
+                       Y1 Y2 _ P' J :-
     X1 = {{ @bigop.body lp:B _ _ _ lp:{{ fun N A _}} }},
     coq.typecheck Idx B ok,
-    @pi-decl N A x\ (
+    (@pi-decl N A x\
       coq.string->name "H" H0,
       fresh-name H0 (P x) H,
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       step_by_context_aux (P1 x) (P2 x) (Y1' x) (Y2' x) _ (PP x) IP,
-      @pi-decl H (P1 x) h\ (
+      ( @pi-decl H (P1 x) h\
         step_by_context_aux (F1 x) (F2 x) (Y1' x) (Y2' x) _ (PF x h) IF
       )
     ),

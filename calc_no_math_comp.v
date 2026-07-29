@@ -115,18 +115,21 @@ Elpi Db relations.db lp:{{
       %) 
     ).
 
+
+  kind pat type.
+  type pat int -> term -> pat.
+  type in_pat int -> term -> pat.
+
   pred step_by_context_aux i:term, o:term, i:list argument, i:argument, i:term, o:term, o:int.
 
   step_by_context_aux X1 X2 [str "in", open-trm 1 (fun _ _ F), Y1] (Y2) H P' I :-
     coq.typecheck X1 Ty ok,
     coq.elaborate-skeleton (F T1) Ty F1 ok,
     X1 = F1,
-    coq.say T1,
-    coq.say T2,
-    coq.say "YAAAAAAAAAAAAAAAAAAAAH",
     step_by_context_aux T1 T2 [Y1] Y2 H P I,
-    X2 = F T2,
-    transform_proof I (F T1) {{@f_equal _ _ lp:{{fun _ _ F}} lp:T1 lp:T2 lp:P}} P'.
+    coq.elaborate-skeleton (F T2) Ty F2 ok,
+    X2 = F2,
+    transform_proof I X1 {{@f_equal _ _ lp:{{fun _ _ F}} lp:T1 lp:T2 lp:P}} P'.
 
   step_by_context_aux X1 Y2' [open-trm 0 Y1] (open-trm 0 Y2) H H 1 :-
     coq.typecheck X1 Ty ok,
@@ -143,10 +146,10 @@ Elpi Db relations.db lp:{{
   step_by_context_aux (app [global Map,_,_,fun N A F1,L1] as X1) (app [global Map,_,_,fun N A F2,L2]) Y1 Y2 T P' J :-
     coq.locate "map" Map,
     step_by_context_aux L1 L2 Y1 Y2 T PL IL,
-    @pi-decl N A x\ (
+    ( @pi-decl N A x\
       coq.string->name "H" H0,
       fresh-name H0 {{In lp:x lp:L}} H,
-      @pi-decl H {{In lp:x lp:L}} h\ (
+      ( @pi-decl H {{In lp:x lp:L}} h\
         instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
         step_by_context_aux (F1 x) (F2 x) (Y1' x)  (Y2' x) _ (P x h) IF
       )
@@ -158,11 +161,11 @@ Elpi Db relations.db lp:{{
     coq.locate "fold_left" Fold,
     step_by_context_aux L1 L2 Y1 Y2 T PL IL,
     step_by_context_aux I1 I2 Y1 Y2 T PI II,
-    @pi-decl Nx A x\ (
-      @pi-decl Ny B y\ (
+    ( @pi-decl Nx A x\
+      ( @pi-decl Ny B y\
         coq.string->name "H" H0,
         fresh-name H0 {{In lp:y lp:L1}} H,
-        @pi-decl H {{In lp:y lp:L1}} h\ (
+        ( @pi-decl H {{In lp:y lp:L1}} h\
           instantiate-replacement Nx A x Y1 Y2 (Y1' x) (Y2' x),
           instantiate-replacement Ny B y (Y1' x) (Y2' x) (Y1'' x y) (Y2'' x y),
           step_by_context_aux (F1 x y) (F2 x y) (Y1'' x y) (Y2'' x y) _ (P x y h) IF
@@ -174,7 +177,7 @@ Elpi Db relations.db lp:{{
 
   step_by_context_aux (app [fun N A F1,X1|L1] as L) (app [fun N A F2,X2|L2]) Y1 Y2 H P' J :-
     step_by_context_aux X1 X2 Y1 Y2 H PX IX,
-    @pi-decl N A x\ (
+    ( @pi-decl N A x\
       instantiate-replacement N A x Y1 Y2 (Y1' x) (Y2' x),
       step_by_context_aux (app [F1 x|L1]) (app [F2 x|L2]) (Y1' x) (Y2' x) _ (PF x) IF
     ),
@@ -266,7 +269,7 @@ Elpi Accumulate lp:{{
   func compile term, term -> prop.
 
   compile (prod N T x\ prod _ (GL x) y\ prod _ (GR x y) z\ (G x y z)) P (pi x\ C x) :- !,
-    @pi-decl N T x\ (
+    ( @pi-decl N T x\
       coq.mk-app P [x] (P' x),
       compile (prod _ (GL x) y\ prod _ (GR x y) z\ (G x y z)) (P' x) (C x)
     ).
@@ -343,12 +346,14 @@ Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
   solve (goal _ _ E0 _ [str "in",str X,F,Y1,Y2] as G) GL :-
     coq.string->name X N,
-    @pi-decl N _ x\ (
+    ( @pi-decl N _ x\
       instantiate N _ x F (open-trm I (F' x))
     ),
     preserve_bound_variables E0 E,
+    coq.say E,
     J is I + 1,
     step_by_context E [str "in", (open-trm J (fun N _ F')), Y1] Y2 T,
+    coq.say T,
     if (refine.typecheck T G GL) (1=1) (
       if (refine T G GL)
         (1 = 1)
@@ -389,6 +394,8 @@ Tactic Notation (at level 0) "context" "[" uconstr_list_sep(l, ",") "]" uconstr(
 Tactic Notation (at level 0) "context" "[" uconstr_list_sep(l, ",") "]" uconstr(t1) "=" uconstr(t2) "by" tactic(ta):=
   elpi context ltac_open_term_list:(l) ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]..|idtac].
 
+
+  
 Tactic Notation (at level 0) "context" "[" "in" ident(x) "in" uconstr(tx) "]" uconstr(t1) "=" uconstr(t2) :=
   elpi context in ltac_string:(x) ltac_open_term:(tx) ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..|idtac].
 
