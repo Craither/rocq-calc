@@ -1,7 +1,6 @@
 From Stdlib Require Import Arith.
 From Stdlib Require Import List.
 From elpi Require Import elpi.
-From mathcomp Require Import ssrmatching.
 
 Lemma f_equal_equal:
   forall [A B:Type] [f1 f2: A->B] [x1 x2:A], f1 = f2 -> x1 = x2 -> f1 x1 = f2 x2.
@@ -96,7 +95,7 @@ Elpi Db relations.db lp:{{
   step _ _ _ :-
     coq.ltac.fail _ "No applicable rule".
 
-  pred step_by_context i:term, i:list argument, i:argument, o:term.
+  pred step_by_context i:term, i:list pat, i:pat, o:term.
   step_by_context E Y1 Y2 P' :-
     E = app L,
     std.rev L [_,X1|_],
@@ -104,15 +103,13 @@ Elpi Db relations.db lp:{{
     if (J = 0)(
       coq.ltac.fail _ "Pattern not found"
     ) (
-      %if (X2 = V) (P' = P) (
-        if (trans {{lp:X1 = lp:V}} _ E TF) (
-          (P' = {{lp:TF lp:P _}})
-        ) (
-          incl {{lp:X1 = lp:V}} I IF,
-          trans I _ E TF,
-          P' = {{lp:TF (lp:IF lp:P) _}}
-        )
-      %) 
+      if (trans {{lp:X1 = lp:V}} _ E TF) (
+        (P' = {{lp:TF lp:P _}})
+      ) (
+        incl {{lp:X1 = lp:V}} I IF,
+        trans I _ E TF,
+        P' = {{lp:TF (lp:IF lp:P) _}}
+      )
     ).
 
 
@@ -120,9 +117,9 @@ Elpi Db relations.db lp:{{
   type pat int -> term -> pat.
   type in_pat int -> term -> pat.
 
-  pred step_by_context_aux i:term, o:term, i:list argument, i:argument, i:term, o:term, o:int.
+  pred step_by_context_aux i:term, o:term, i:list pat, i:pat, i:term, o:term, o:int.
 
-  step_by_context_aux X1 X2 [str "in", open-trm 1 (fun _ _ F), Y1] (Y2) H P' I :-
+  step_by_context_aux X1 X2 [in_pat 0 (fun _ _ F), Y1] (Y2) H P' I :-
     coq.typecheck X1 Ty ok,
     coq.elaborate-skeleton (F T1) Ty F1 ok,
     X1 = F1,
@@ -131,13 +128,13 @@ Elpi Db relations.db lp:{{
     X2 = F2,
     transform_proof I X1 {{@f_equal _ _ lp:{{fun _ _ F}} lp:T1 lp:T2 lp:P}} P'.
 
-  step_by_context_aux X1 Y2' [open-trm 0 Y1] (open-trm 0 Y2) H H 1 :-
+  step_by_context_aux X1 Y2' [pat 0 Y1] (pat 0 Y2) H H 1 :-
     coq.typecheck X1 Ty ok,
     coq.elaborate-skeleton Y1 Ty Y1' ok,
     coq.elaborate-skeleton Y2 Ty Y2' ok,
     X1 = Y1'.
   
-  step_by_context_aux X1 X2 [open-trm 0 Y1|L] Y2 H P I :-
+  step_by_context_aux X1 X2 [pat 0 Y1|L] Y2 H P I :-
     coq.typecheck X1 Ty ok,
     coq.elaborate-skeleton Y1 Ty Y1' ok,
     X1 = Y1',
@@ -193,7 +190,7 @@ Elpi Db relations.db lp:{{
   step_by_context_aux (global _ as C) C _ _ _ {{ @refl_equal Type lp:C }} 0 :- coq.typecheck-ty C _ ok.
   step_by_context_aux (global _ as C) C _ _ _ {{ refl_equal lp:C }} 0.
 
-  pred app_rewrite i:term, i:list term, o:term, o:list term, i:list argument, i:argument, i:term, o:term, o:int.
+  pred app_rewrite i:term, i:list term, o:term, o:list term, i:list pat, i:pat, i:term, o:term, o:int.
   app_rewrite F1 [] F2 [] Y1 Y2 H PF I :-
     step_by_context_aux F1 F2 Y1 Y2 H PF I.
 
@@ -203,28 +200,23 @@ Elpi Db relations.db lp:{{
     J is IX + IF,
     transform_proof J (app [F1,X1|L1]) {{f_equal_equal lp:PF lp:PX}} P'.
 
-  pred instantiate-replacement i:name, i:term, i:term, i:list argument, i:argument, o:list argument, o:argument.
-  instantiate-replacement N Ty C [str "in", open-trm I (fun N1 T1 F)|L] Y2 L' Y2' :-
-    instantiate-replacement N Ty C L Y2 L'' Y2',
-    J is (I - 1),
-    (@pi-decl N1 T1 x\ instantiate N Ty C (open-trm J (F x)) (open-trm J' (F1 x))),
-    I' is (J' + 1),
-    L' = [str "in", open-trm I' (fun N1 T1 F1)|L''].
-  
+  func transform_proof int,term,term -> term.
+    transform_proof 0 X _ {{Logic.eq_refl lp:X}} :-!.
+    transform_proof _ _ T T.
+
+  pred instantiate-replacement i:name, i:term, i:term, i:list pat, i:pat, o:list pat, o:pat.
   instantiate-replacement N Ty C L Y2 L' Y2':-
     instantiate N Ty C Y2 Y2',
     std.map L (x\r\ instantiate N Ty C x r) L'.
 
-  func transform_proof int,term,term -> term.
-  transform_proof 0 X _ {{Logic.eq_refl lp:X}} :-!.
-  transform_proof _ _ T T.
-
-  pred instantiate i:name, i:term, i:term, i:argument, o:argument.
-  instantiate _ _ _ (str "in") (str "in").
-  instantiate _ _ _ (open-trm 0 A) (open-trm 0 A).
-  instantiate N T C (open-trm I F) (open-trm J F1) :- 
+  pred instantiate i:name, i:term, i:term, i:pat, o:pat.
+  instantiate _ _ _ (pat 0 A) (pat 0 A).
+  instantiate _ _ _ (in_pat 0 A) (in_pat 0 A).
+  instantiate N T C (pat I F) (pat J F1) :- 
     remove-binder-for N T C F F1,
     J is I - 1.
+  instantiate N T C (in_pat I (fun N1 T1 F)) (in_pat J (fun N1 T1 F1)):-
+    @pi-decl N1 T1 x\ instantiate N T C (pat I (F x)) (pat J (F1 x)).
   instantiate _ _ _ X X.
 
   pred remove-binder-for i:name, i:term, i:term, i:term, o:term.
@@ -265,7 +257,6 @@ Elpi Db relations.db lp:{{
 Elpi Command add_transitivity.
 Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
-  
   func compile term, term -> prop.
 
   compile (prod N T x\ prod _ (GL x) y\ prod _ (GR x y) z\ (G x y z)) P (pi x\ C x) :- !,
@@ -344,23 +335,20 @@ Elpi Accumulate lp:{{
 Elpi Tactic context.
 Elpi Accumulate Db relations.db.
 Elpi Accumulate lp:{{
-  solve (goal _ _ E0 _ [str "in",str X,F,Y1,Y2] as G) GL :-
-    coq.string->name X N,
-    ( @pi-decl N _ x\
-      instantiate N _ x F (open-trm I (F' x))
-    ),
-    preserve_bound_variables E0 E,
-    coq.say E,
-    J is I + 1,
-    step_by_context E [str "in", (open-trm J (fun N _ F')), Y1] Y2 T,
-    coq.say T,
-    if (refine.typecheck T G GL) (1=1) (
-      if (refine T G GL)
-        (1 = 1)
-        (coq.ltac.fail _ "Refinement failed")
-    ).
+  pred parse_list i:list argument, o:list pat.
+  parse_list [] [].
 
-  solve (goal _ _ E0 _ L as G) GL :-
+  parse_list [open-trm I T|L] [pat I T|L'] :-
+    parse_list L L'.
+
+  parse_list [str X,open-trm I F|L] [in_pat J (fun N _ F')|L'] :-
+    parse_list L L',
+    coq.string->name X N,
+    @pi-decl N _ x\
+      instantiate N _ x (pat I F) (pat J (F' x)).
+
+  solve (goal _ _ E0 _ L0 as G) GL :-
+    parse_list L0 L,
     std.rev L [Y2|L'],
     std.rev L' Y1,
     preserve_bound_variables E0 E,
@@ -389,15 +377,24 @@ Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2) :=
   Tactic Notation (at level 0) "context" uconstr(t1) "=" uconstr(t2) "by" tactic(ta):=
   elpi context ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]..|idtac].
 
-Tactic Notation (at level 0) "context" "[" uconstr_list_sep(l, ",") "]" uconstr(t1) "=" uconstr(t2):=
-  elpi context ltac_open_term_list:(l) ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..|idtac].
-Tactic Notation (at level 0) "context" "[" uconstr_list_sep(l, ",") "]" uconstr(t1) "=" uconstr(t2) "by" tactic(ta):=
-  elpi context ltac_open_term_list:(l) ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]..|idtac].
-
-
-  
+Tactic Notation (at level 0) "context" "[" "in" uconstr(l) "]" uconstr(t1) "=" uconstr(t2):=
+  elpi context ltac_open_term:(l) ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..|idtac].
+Tactic Notation (at level 0) "context" "[" "in" uconstr(l) "]" uconstr(t1) "=" uconstr(t2) "by" tactic(ta):=
+  elpi context ltac_open_term:(l) ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]..|idtac].
 Tactic Notation (at level 0) "context" "[" "in" ident(x) "in" uconstr(tx) "]" uconstr(t1) "=" uconstr(t2) :=
-  elpi context in ltac_string:(x) ltac_open_term:(tx) ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..|idtac].
-
+  elpi context ltac_string:(x) ltac_open_term:(tx) ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..|idtac].
 Tactic Notation (at level 0) "context" "[" "in" ident(x) "in" uconstr(tx) "]" uconstr(t1) "=" uconstr(t2) "by" tactic(ta) :=
-  elpi context in ltac_string:(x) ltac_open_term:(tx) ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]..|idtac].
+  elpi context ltac_string:(x) ltac_open_term:(tx) ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]..|idtac].
+
+Tactic Notation (at level 0) "context" "[" "in" uconstr(l1) "]" "[" "in" uconstr(l2) "]" uconstr(t1) "=" uconstr(t2):=
+  elpi context ltac_open_term:(l1) ltac_open_term:(l2) ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..|idtac].
+Tactic Notation (at level 0) "context" "[" "in" uconstr(l1) "]" "[" "in" uconstr(l2) "]" uconstr(t1) "=" uconstr(t2) "by" tactic(ta):=
+  elpi context ltac_open_term:(l1) ltac_open_term:(l2) ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]..|idtac].
+Tactic Notation (at level 0) "context" "[" "in" ident(x) "in" uconstr(tx) "]" "[" "in" uconstr(l) "]" uconstr(t1) "=" uconstr(t2):=
+  elpi context ltac_string:(x) ltac_open_term:(tx) ltac_open_term:(l) ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..|idtac].
+Tactic Notation (at level 0) "context" "[" "in" ident(x) "in" uconstr(tx) "]" "[" "in" uconstr(l) "]" uconstr(t1) "=" uconstr(t2) "by" tactic(ta):=
+  elpi context ltac_string:(x) ltac_open_term:(tx) ltac_open_term:(l) ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]..|idtac].
+Tactic Notation (at level 0) "context" "[" "in" ident(x1) "in" uconstr(tx1) "]" "[" "in" ident(x2) "in" uconstr(tx2) "]" uconstr(t1) "=" uconstr(t2):=
+  elpi context ltac_string:(x1) ltac_open_term:(tx1) ltac_string:(x2) ltac_open_term:(tx2) ltac_open_term:(t1) ltac_open_term:(t2); [cbv beta..|idtac].
+Tactic Notation (at level 0) "context" "[" "in" ident(x1) "in" uconstr(tx1) "]" "[" "in" ident(x2) "in" uconstr(tx2) "]" uconstr(t1) "=" uconstr(t2) "by" tactic(ta):=
+  elpi context ltac_string:(x1) ltac_open_term:(tx1) ltac_string:(x2) ltac_open_term:(tx2) ltac_open_term:(t1) ltac_open_term:(t2); [solve[ta]..|idtac].
